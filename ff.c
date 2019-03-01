@@ -18,13 +18,13 @@ typedef struct {
     long max_depth;
 } options;
 
-void process_match(const char *match, options opt) {
+void process_match(const char *match, options * opt) {
     (void) opt;
     puts(match);
 }
 
-void walk(const char *parent, size_t l_parent, options opt, int depth) {
-    if (opt.max_depth > 0 && depth >= opt.max_depth) {
+void walk(const char *parent, size_t l_parent, options * opt, int depth) {
+    if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
 
@@ -43,7 +43,7 @@ void walk(const char *parent, size_t l_parent, options opt, int depth) {
 
         // Skip hidden
         size_t d_namlen = strlen(entry->d_name);
-        if (opt.hidden_flag) {
+        if (opt->hidden_flag) {
             if (entry->d_name[0] == '.' || entry->d_name[d_namlen - 1] == '~') {
                 continue;
             }
@@ -59,13 +59,13 @@ void walk(const char *parent, size_t l_parent, options opt, int depth) {
 
         int ovector[3];
         int rc = -1;
-        if (opt.re != NULL) {
+        if (opt->re != NULL) {
             // Check match
-            rc = pcre_jit_exec(opt.re, opt.extra, entry->d_name, d_namlen,
-                               0, 0, ovector, 3, opt.jit_stack);
+            rc = pcre_jit_exec(opt->re, opt->extra, entry->d_name, d_namlen,
+                               0, 0, ovector, 3, opt->jit_stack);
         }
-        if (opt.re == NULL || rc > 0) {
-            if (opt.only_type == DT_UNKNOWN || opt.only_type == entry->d_type) {
+        if (opt->re == NULL || rc > 0) {
+            if (opt->only_type == DT_UNKNOWN || opt->only_type == entry->d_type) {
                 process_match(current, opt);
             }
         }
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
         pattern = argv[optind];
         break;
     case 0:
-         walk(directory, strlen(directory), opt, 0);
+         walk(directory, strlen(directory), &opt, 0);
          return 0;
     default:
         print_usage("You need to provide a pattern");
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
     pcre_assign_jit_stack(opt.extra, NULL, opt.jit_stack);
 
     // Walk the directory tree
-    walk(directory, strlen(directory), opt, 0);
+    walk(directory, strlen(directory), &opt, 0);
 
     pcre_free(opt.re);
     pcre_free_study(opt.extra);
