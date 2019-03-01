@@ -1,29 +1,62 @@
+#define _GNU_SOURCE
+
+// C standard library
 #include <assert.h>
-#include <dirent.h>
 #include <errno.h>
-#include <getopt.h>
-#include <pcre.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// POSIX C library
+#include <dirent.h>
+#include <fnmatch.h>
+
+// GNU C library
+#include <getopt.h>
+
+// PCRE
+#include <pcre.h>
+
+typedef enum {
+    NONE,
+    GLOB,
+    REGEX,
+} match_mode;
 
 typedef struct {
     pcre *re;
     pcre_extra *extra;
     pcre_jit_stack *jit_stack;
+} regex_options;
 
+typedef struct {
+    const char *pattern;
+    int flags;
+} glob_options;
+
+typedef union {
+    regex_options regex;
+    glob_options glob;
+} match_options;
+
+typedef struct {
+    match_options opts;
+    match_mode mode;
     unsigned char only_type;
-    int hidden_flag;
-    int pcre_options;
+    bool skip_hidden;
     long max_depth;
 } options;
 
-void process_match(const char *match, options * opt) {
-    (void) opt;
-    puts(match);
+void process_match(const char *realpath, const char *dirname,
+                   const char *basename, options *opt) {
+    (void)dirname;
+    (void)basename;
+    (void)opt;
+    puts(realpath);
 }
 
-void walk(const char *parent, size_t l_parent, options * opt, int depth) {
+void walk(const char *parent, size_t l_parent, options *opt, int depth) {
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
@@ -35,16 +68,17 @@ void walk(const char *parent, size_t l_parent, options * opt, int depth) {
 
     struct dirent *entry;
     while ((entry = readdir(d)) != NULL) {
+        const char *d_name = entry->d_name;
+
         // Skip current and parent
-        if (strcmp(entry->d_name, ".") == 0 ||
-            strcmp(entry->d_name, "..") == 0) {
+        if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
             continue;
         }
 
         // Skip hidden
-        size_t d_namlen = strlen(entry->d_name);
-        if (opt->hidden_flag) {
-            if (entry->d_name[0] == '.' || entry->d_name[d_namlen - 1] == '~') {
+        size_t d_namlen = strlen(d_name);
+        if (opt->skip_hidden) {
+            if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
                 continue;
             }
         }
@@ -54,20 +88,35 @@ void walk(const char *parent, size_t l_parent, options * opt, int depth) {
         char *current = malloc((l_current + 1) * sizeof(char));
         strncpy(current, parent, l_parent);
         strncpy(current + l_parent, "/", 1);
-        strncpy(current + l_parent + 1, entry->d_name, d_namlen);
+        strncpy(current + l_parent + 1, d_name, d_namlen);
         current[l_current] = '\0';
 
-        int ovector[3];
-        int rc = -1;
-        if (opt->re != NULL) {
-            // Check match
-            rc = pcre_jit_exec(opt->re, opt->extra, entry->d_name, d_namlen,
-                               0, 0, ovector, 3, opt->jit_stack);
-        }
-        if (opt->re == NULL || rc > 0) {
-            if (opt->only_type == DT_UNKNOWN || opt->only_type == entry->d_type) {
-                process_match(current, opt);
+        // Perform the match
+        switch (opt->mode) {
+        case REGEX: {
+            int ovector[3];
+            if (pcre_jit_exec(opt->opts.regex.re, opt->opts.regex.extra, d_name,
+                              d_namlen, 0, 0, ovector, 3,
+                              opt->opts.regex.jit_stack) > 0) {
+                goto success;
             }
+            break;
+        }
+        case GLOB:
+            if (fnmatch(opt->opts.glob.pattern, d_name, opt->opts.glob.flags) ==
+                0) {
+                goto success;
+            }
+            break;
+        case NONE:
+        success:
+            if (opt->only_type == DT_UNKNOWN ||
+                opt->only_type == entry->d_type) {
+                process_match(current, parent, d_name, opt);
+            }
+            break;
+        default:
+            abort(); // Can't happen
         }
 
         if (entry->d_type == DT_DIR) {
@@ -79,41 +128,42 @@ void walk(const char *parent, size_t l_parent, options * opt, int depth) {
     closedir(d);
 }
 
-void print_usage(char const * msg) {
+void print_usage(char const *msg) {
     if (msg) {
         fputs(msg, stderr);
         fputs("\n", stderr);
     }
-    fputs("Usage: ff [options] [pattern] [directory]\n"
-          "Simplified version of GNU find using the PCRE library for regex.\n"
-          "\n"
-          "Valid options:\n"
-          "  --depth <n>     Maximum directory traversal depth\n"
-          "  --type (f|d)    Restrict output to type (f = file, d = directory)\n"
-          "  -H, --hidden    Traverse hidden directories and files as well\n"
-          "  -I, --iregex    Ignore case when applying the regex\n"
-          , stderr);
+    fputs(
+        "Usage: ff [options] [pattern] [directory]\n"
+        "Simplified version of GNU find using the PCRE library for regex.\n"
+        "\n"
+        "Valid options:\n"
+        "  --depth <n>     Maximum directory traversal depth\n"
+        "  --type (f|d)    Restrict output to type (f = file, d = directory)\n"
+        "  --glob          Match glob instead of regex\n"
+        "  -H, --hidden    Traverse hidden directories and files as well\n"
+        "  -I, --icase     Ignore case when applying the regex\n",
+        stderr);
 }
 
 int main(int argc, char *argv[]) {
     options opt = {
-        .re = NULL,
-        .extra = NULL,
-        .jit_stack = NULL,
-
+        .mode = NONE,
         .only_type = DT_UNKNOWN,
-        .hidden_flag = 1,
-        .pcre_options = 0,
+        .skip_hidden = true,
         .max_depth = -1,
     };
+
+    bool icase = false;
 
     // Parse options
     int option_index = 0;
     static struct option long_options[] = {
         {"depth", required_argument, NULL, 0},
         {"type", required_argument, NULL, 0},
+        {"glob", no_argument, NULL, 0},
         {"hidden", no_argument, NULL, 'H'},
-        {"iregex", no_argument, NULL, 'I'},
+        {"icase", no_argument, NULL, 'I'},
         {0, 0, NULL, 0}};
 
     int c = -1;
@@ -121,8 +171,17 @@ int main(int argc, char *argv[]) {
            -1) {
         switch (c) {
         case 0:
-            if (strcmp(long_options[option_index].name, "type") == 0) {
+            switch (option_index) {
+            case 0: // depth
                 assert(optarg);
+                opt.max_depth = (long)strtoul(optarg, NULL, 0);
+                if (opt.max_depth == 0 || errno == ERANGE) {
+                    print_usage("Invalid argument for --depth");
+                    return 1;
+                }
+                break;
+            case 1: // type
+                assert(optarg && strlen(optarg) > 0);
                 switch (optarg[0]) {
                 case 'f':
                     opt.only_type = DT_REG;
@@ -134,21 +193,20 @@ int main(int argc, char *argv[]) {
                     print_usage("Invalid argument for --type");
                     return 1;
                 }
-            } else if (strcmp(long_options[option_index].name, "depth") == 0) {
-                assert(optarg);
-                char *end = optarg + strlen(optarg);
-                opt.max_depth = (long)strtoul(optarg, &end, 10);
-                if (opt.max_depth == 0 || errno == ERANGE) {
-                    print_usage("Invalid argument for --depth");
-                    return 1;
-                }
+                break;
+            case 2: // glob
+                opt.mode = GLOB;
+                break;
+            default:
+                print_usage(NULL); // Can this even happen?
+                return 1;
             }
             break;
         case 'H':
-            opt.hidden_flag = 0;
+            opt.skip_hidden = false;
             break;
         case 'I':
-            opt.pcre_options |= PCRE_CASELESS;
+            icase = true;
             break;
         default:
             print_usage(NULL);
@@ -156,42 +214,75 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    char *pattern;
+    char *pattern = "";
     char *directory = ".";
     switch (argc - optind) {
     case 2:
         directory = argv[optind + 1];
-        __attribute__((fallthrough));
     case 1:
         pattern = argv[optind];
+        if (strlen(pattern) > 0 && opt.mode == NONE) {
+            opt.mode = REGEX;
+        }
         break;
     case 0:
-         walk(directory, strlen(directory), &opt, 0);
-         return 0;
+        opt.mode = NONE;
+        break;
     default:
         print_usage("You need to provide a pattern");
         return 1;
     }
 
-    // Compile pattern
-    const char *error;
-    int erroffset;
-    opt.re = pcre_compile(pattern, opt.pcre_options, &error, &erroffset, NULL);
-    if (opt.re == NULL) {
-        fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
-        return 1;
+    switch (opt.mode) {
+    case REGEX:
+        opt.opts.regex.re = NULL;
+        opt.opts.regex.extra = NULL;
+        opt.opts.regex.jit_stack = NULL;
+
+        int options_pcre = icase ? PCRE_CASELESS : 0;
+        // Compile pattern
+        const char *error;
+        int erroffset;
+        opt.opts.regex.re =
+            pcre_compile(pattern, options_pcre, &error, &erroffset, NULL);
+        if (opt.opts.regex.re == NULL) {
+            fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
+            return 1;
+        }
+        opt.opts.regex.extra =
+            pcre_study(opt.opts.regex.re, PCRE_STUDY_JIT_COMPILE, &error);
+        assert(opt.opts.regex.extra != NULL);
+        opt.opts.regex.jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+        assert(opt.opts.regex.jit_stack != NULL);
+        pcre_assign_jit_stack(opt.opts.regex.extra, NULL,
+                              opt.opts.regex.jit_stack);
+        break;
+    case GLOB:
+        opt.opts.glob.pattern = pattern;
+        opt.opts.glob.flags = icase ? FNM_CASEFOLD : 0;
+        break;
+    case NONE:
+        break;
+    default:
+        abort(); // Can't happen
     }
-    opt.extra = pcre_study(opt.re, PCRE_STUDY_JIT_COMPILE, &error);
-    assert(opt.extra != NULL);
-    opt.jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-    assert(opt.jit_stack != NULL);
-    pcre_assign_jit_stack(opt.extra, NULL, opt.jit_stack);
 
     // Walk the directory tree
     walk(directory, strlen(directory), &opt, 0);
 
-    pcre_free(opt.re);
-    pcre_free_study(opt.extra);
-    pcre_jit_stack_free(opt.jit_stack);
+    // Cleanup
+    switch (opt.mode) {
+    case REGEX:
+        pcre_free(opt.opts.regex.re);
+        pcre_free_study(opt.opts.regex.extra);
+        pcre_jit_stack_free(opt.opts.regex.jit_stack);
+        break;
+    case GLOB:
+        break;
+    case NONE:
+        break;
+    default:
+        abort(); // Can't happen
+    }
     return 0;
 }
