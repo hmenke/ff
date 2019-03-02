@@ -220,7 +220,9 @@ int main(int argc, char *argv[]) {
     switch (argc - optind) {
     case 2:
         directory = argv[optind + 1];
+        goto fallthrough;
     case 1:
+    fallthrough:
         pattern = argv[optind];
         if (strlen(pattern) > 0 && opt.mode == NONE) {
             opt.mode = REGEX;
