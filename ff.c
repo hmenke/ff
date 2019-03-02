@@ -1,4 +1,6 @@
+#ifndef __cplusplus
 #define _GNU_SOURCE
+#endif
 
 // C standard library
 #include <assert.h>
@@ -21,7 +23,7 @@
 typedef enum {
     NONE,
     GLOB,
-    REGEX,
+    REGEX
 } match_mode;
 
 typedef struct {
@@ -69,6 +71,7 @@ void walk(const char *parent, size_t l_parent, options *opt, int depth) {
     struct dirent *entry;
     while ((entry = readdir(d)) != NULL) {
         const char *d_name = entry->d_name;
+        size_t d_namlen = strlen(d_name);
 
         // Skip current and parent
         if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
@@ -76,7 +79,6 @@ void walk(const char *parent, size_t l_parent, options *opt, int depth) {
         }
 
         // Skip hidden
-        size_t d_namlen = strlen(d_name);
         if (opt->skip_hidden) {
             if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
                 continue;
@@ -85,7 +87,7 @@ void walk(const char *parent, size_t l_parent, options *opt, int depth) {
 
         // Assemble filename
         size_t l_current = l_parent + d_namlen + 1;
-        char *current = malloc((l_current + 1) * sizeof(char));
+        char *current = (char*)malloc((l_current + 1) * sizeof(char));
         strncpy(current, parent, l_parent);
         strncpy(current + l_parent, "/", 1);
         strncpy(current + l_parent + 1, d_name, d_namlen);
@@ -128,7 +130,7 @@ void walk(const char *parent, size_t l_parent, options *opt, int depth) {
     closedir(d);
 }
 
-void print_usage(char const *msg) {
+void print_usage(const char *msg) {
     if (msg) {
         fputs(msg, stderr);
         fputs("\n", stderr);
@@ -147,12 +149,11 @@ void print_usage(char const *msg) {
 }
 
 int main(int argc, char *argv[]) {
-    options opt = {
-        .mode = NONE,
-        .only_type = DT_UNKNOWN,
-        .skip_hidden = true,
-        .max_depth = -1,
-    };
+    options opt;
+    opt.mode = NONE;
+    opt.only_type = DT_UNKNOWN;
+    opt.skip_hidden = true;
+    opt.max_depth = -1;
 
     bool icase = false;
 
@@ -214,8 +215,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    char *pattern = "";
-    char *directory = ".";
+    const char *pattern = "";
+    const char *directory = ".";
     switch (argc - optind) {
     case 2:
         directory = argv[optind + 1];
@@ -234,17 +235,18 @@ int main(int argc, char *argv[]) {
     }
 
     switch (opt.mode) {
-    case REGEX:
+    case REGEX: {
         opt.opts.regex.re = NULL;
         opt.opts.regex.extra = NULL;
         opt.opts.regex.jit_stack = NULL;
 
-        int options_pcre = icase ? PCRE_CASELESS : 0;
+        int flags = icase ? PCRE_CASELESS : 0;
+
         // Compile pattern
         const char *error;
         int erroffset;
         opt.opts.regex.re =
-            pcre_compile(pattern, options_pcre, &error, &erroffset, NULL);
+            pcre_compile(pattern, flags, &error, &erroffset, NULL);
         if (opt.opts.regex.re == NULL) {
             fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
             return 1;
@@ -256,7 +258,7 @@ int main(int argc, char *argv[]) {
         assert(opt.opts.regex.jit_stack != NULL);
         pcre_assign_jit_stack(opt.opts.regex.extra, NULL,
                               opt.opts.regex.jit_stack);
-        break;
+    } break;
     case GLOB:
         opt.opts.glob.pattern = pattern;
         opt.opts.glob.flags = icase ? FNM_CASEFOLD : 0;
