@@ -19,6 +19,5 @@ your POSIX system.
 ## Future features (hopefully)
 
 - Parallel directory traversal
-- Colorized output
 - Command execution
 - Exclude files and directories

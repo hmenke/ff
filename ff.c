@@ -2,6 +2,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include "dircolors.h"
+
 // C standard library
 #include <assert.h>
 #include <errno.h>
@@ -13,6 +15,7 @@
 // POSIX C library
 #include <dirent.h>
 #include <fnmatch.h>
+#include <unistd.h>
 
 // GNU C library
 #include <getopt.h>
@@ -48,14 +51,19 @@ typedef struct {
     unsigned char only_type;
     bool skip_hidden;
     long max_depth;
+    bool colorize;
 } options;
 
 void process_match(const char *realpath, const char *dirname,
                    const char *basename, options *opt) {
     (void)dirname;
     (void)basename;
-    (void)opt;
-    puts(realpath);
+
+    if (opt->colorize) {
+        printf("%s%s%s\n", dircolor(realpath), realpath, DIRCOLOR_RESET);
+    } else {
+        puts(realpath);
+    }
 }
 
 void walk(const char *parent, size_t l_parent, options *opt, int depth) {
@@ -154,6 +162,7 @@ int main(int argc, char *argv[]) {
     opt.only_type = DT_UNKNOWN;
     opt.skip_hidden = true;
     opt.max_depth = -1;
+    opt.colorize = isatty(fileno(stdout));
 
     bool icase = false;
 
