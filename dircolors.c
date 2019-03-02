@@ -61,6 +61,11 @@ const char *unhash(unsigned long hash) {
 }
 */
 
+// The colors are taken from the GNU coreutils file dircolors.hin
+//
+// Copyright (C) 1996-2019 Free Software Foundation, Inc.
+// Copying and distribution of this file, with or without modification,
+// are permitted provided the copyright notice and this notice are preserved.
 const char *dircolor(const char *realpath) {
     struct stat statbuf;
     if (lstat(realpath, &statbuf) != 0) {
@@ -69,7 +74,6 @@ const char *dircolor(const char *realpath) {
 
     // clang-format off
     switch (statbuf.st_mode & S_IFMT) {
-    // This section was taken from the coreutils dircolors.hin
     case S_IFBLK:  return "\33[40;33;01m";
     case S_IFCHR:  return "\33[40;33;01m";
     case S_IFDIR:  return "\33[01;34m";
@@ -96,8 +100,6 @@ const char *dircolor(const char *realpath) {
 
     // clang-format off
     switch (hash(ext)) {
-    // This section was taken from the coreutils dircolors.hin
-
     // archives or compressed (bright red)
     case HASH('t','a','r'):         return "\33[01;31m";
     case HASH('t','g','z'):         return "\33[01;31m";
