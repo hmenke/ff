@@ -8,7 +8,6 @@
 // POSIX C library
 #include <sys/stat.h>
 
-
 // Simple hash function for short strings
 
 #define HASH_1(ARG1) ((0UL << 8) + ARG1)
@@ -34,7 +33,7 @@
                sentinel)
 
 unsigned long hash(const char *str) {
-    if(strlen(str) <= sizeof(unsigned long)) {
+    if (strlen(str) <= sizeof(unsigned long)) {
         return 0UL;
     }
     unsigned long hash = 0UL;
@@ -74,20 +73,20 @@ const char *dircolor(const char *realpath) {
 
     // clang-format off
     switch (statbuf.st_mode & S_IFMT) {
-    case S_IFBLK:  return "\33[40;33;01m";
-    case S_IFCHR:  return "\33[40;33;01m";
-    case S_IFDIR:  return "\33[01;34m";
-    case S_IFIFO:  return "\33[40;33m";
-    case S_IFLNK:  return "\33[01;36m";
-    case S_IFSOCK: return "\33[01;35m";
+    case S_IFBLK:  return DIRCOLOR_BLK;
+    case S_IFCHR:  return DIRCOLOR_CHR;
+    case S_IFDIR:  return DIRCOLOR_DIR;
+    case S_IFIFO:  return DIRCOLOR_IFO;
+    case S_IFLNK:  return DIRCOLOR_LINK;
+    case S_IFSOCK: return DIRCOLOR_SOCK;
     case S_IFREG:  break;
     default: break;
     }
 
-    if (statbuf.st_mode & S_IEXEC) { return "\33[01;32m"; }
-    if (statbuf.st_mode & S_ISUID) { return "\33[37;41m"; }
-    if (statbuf.st_mode & S_ISGID) { return "\33[30;43m"; }
-    if (statbuf.st_mode & S_ISVTX) { return "\33[37;44m"; }
+    if (statbuf.st_mode & S_IEXEC) { return DIRCOLOR_EXEC;   }
+    if (statbuf.st_mode & S_ISUID) { return DIRCOLOR_SETUID; }
+    if (statbuf.st_mode & S_ISGID) { return DIRCOLOR_SETGID; }
+    if (statbuf.st_mode & S_ISVTX) { return DIRCOLOR_STICKY; }
     // clang-format on
 
     // Extract the extension
@@ -101,121 +100,121 @@ const char *dircolor(const char *realpath) {
     // clang-format off
     switch (hash(ext)) {
     // archives or compressed (bright red)
-    case HASH('t','a','r'):         return "\33[01;31m";
-    case HASH('t','g','z'):         return "\33[01;31m";
-    case HASH('a','r','c'):         return "\33[01;31m";
-    case HASH('a','r','j'):         return "\33[01;31m";
-    case HASH('t','a','z'):         return "\33[01;31m";
-    case HASH('l','h','a'):         return "\33[01;31m";
-    case HASH('l','z','4'):         return "\33[01;31m";
-    case HASH('l','z','h'):         return "\33[01;31m";
-    case HASH('l','z','m','a'):     return "\33[01;31m";
-    case HASH('t','l','z'):         return "\33[01;31m";
-    case HASH('t','x','z'):         return "\33[01;31m";
-    case HASH('t','z','o'):         return "\33[01;31m";
-    case HASH('t','7','z'):         return "\33[01;31m";
-    case HASH('z','i','p'):         return "\33[01;31m";
-    case HASH('z'):                 return "\33[01;31m";
-    case HASH('d','z'):             return "\33[01;31m";
-    case HASH('g','z'):             return "\33[01;31m";
-    case HASH('l','r','z'):         return "\33[01;31m";
-    case HASH('l','z'):             return "\33[01;31m";
-    case HASH('l','z','o'):         return "\33[01;31m";
-    case HASH('x','z'):             return "\33[01;31m";
-    case HASH('z','s','t'):         return "\33[01;31m";
-    case HASH('t','z','s','t'):     return "\33[01;31m";
-    case HASH('b','z','2'):         return "\33[01;31m";
-    case HASH('b','z'):             return "\33[01;31m";
-    case HASH('t','b','z'):         return "\33[01;31m";
-    case HASH('t','b','z','2'):     return "\33[01;31m";
-    case HASH('t','z'):             return "\33[01;31m";
-    case HASH('d','e','b'):         return "\33[01;31m";
-    case HASH('r','p','m'):         return "\33[01;31m";
-    case HASH('j','a','r'):         return "\33[01;31m";
-    case HASH('w','a','r'):         return "\33[01;31m";
-    case HASH('e','a','r'):         return "\33[01;31m";
-    case HASH('s','a','r'):         return "\33[01;31m";
-    case HASH('r','a','r'):         return "\33[01;31m";
-    case HASH('a','l','z'):         return "\33[01;31m";
-    case HASH('a','c','e'):         return "\33[01;31m";
-    case HASH('z','o','o'):         return "\33[01;31m";
-    case HASH('c','p','i','o'):     return "\33[01;31m";
-    case HASH('7','z'):             return "\33[01;31m";
-    case HASH('r','z'):             return "\33[01;31m";
-    case HASH('c','a','b'):         return "\33[01;31m";
-    case HASH('w','i','m'):         return "\33[01;31m";
-    case HASH('s','w','m'):         return "\33[01;31m";
-    case HASH('d','w','m'):         return "\33[01;31m";
-    case HASH('e','s','d'):         return "\33[01;31m";
+    case HASH('t','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','g','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('a','r','c'):         return DIRCOLOR_ARCHIVE;
+    case HASH('a','r','j'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','a','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('l','h','a'):         return DIRCOLOR_ARCHIVE;
+    case HASH('l','z','4'):         return DIRCOLOR_ARCHIVE;
+    case HASH('l','z','h'):         return DIRCOLOR_ARCHIVE;
+    case HASH('l','z','m','a'):     return DIRCOLOR_ARCHIVE;
+    case HASH('t','l','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','x','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','z','o'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','7','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('z','i','p'):         return DIRCOLOR_ARCHIVE;
+    case HASH('z'):                 return DIRCOLOR_ARCHIVE;
+    case HASH('d','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('g','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('l','r','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('l','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('l','z','o'):         return DIRCOLOR_ARCHIVE;
+    case HASH('x','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('z','s','t'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','z','s','t'):     return DIRCOLOR_ARCHIVE;
+    case HASH('b','z','2'):         return DIRCOLOR_ARCHIVE;
+    case HASH('b','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('t','b','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('t','b','z','2'):     return DIRCOLOR_ARCHIVE;
+    case HASH('t','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('d','e','b'):         return DIRCOLOR_ARCHIVE;
+    case HASH('r','p','m'):         return DIRCOLOR_ARCHIVE;
+    case HASH('j','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('w','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('e','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('s','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('r','a','r'):         return DIRCOLOR_ARCHIVE;
+    case HASH('a','l','z'):         return DIRCOLOR_ARCHIVE;
+    case HASH('a','c','e'):         return DIRCOLOR_ARCHIVE;
+    case HASH('z','o','o'):         return DIRCOLOR_ARCHIVE;
+    case HASH('c','p','i','o'):     return DIRCOLOR_ARCHIVE;
+    case HASH('7','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('r','z'):             return DIRCOLOR_ARCHIVE;
+    case HASH('c','a','b'):         return DIRCOLOR_ARCHIVE;
+    case HASH('w','i','m'):         return DIRCOLOR_ARCHIVE;
+    case HASH('s','w','m'):         return DIRCOLOR_ARCHIVE;
+    case HASH('d','w','m'):         return DIRCOLOR_ARCHIVE;
+    case HASH('e','s','d'):         return DIRCOLOR_ARCHIVE;
     // image formats
-    case HASH('j','p','g'):         return "\33[01;35m";
-    case HASH('j','p','e','g'):     return "\33[01;35m";
-    case HASH('m','j','p','g'):     return "\33[01;35m";
-    case HASH('m','j','p','e','g'): return "\33[01;35m";
-    case HASH('g','i','f'):         return "\33[01;35m";
-    case HASH('b','m','p'):         return "\33[01;35m";
-    case HASH('p','b','m'):         return "\33[01;35m";
-    case HASH('p','g','m'):         return "\33[01;35m";
-    case HASH('p','p','m'):         return "\33[01;35m";
-    case HASH('t','g','a'):         return "\33[01;35m";
-    case HASH('x','b','m'):         return "\33[01;35m";
-    case HASH('x','p','m'):         return "\33[01;35m";
-    case HASH('t','i','f'):         return "\33[01;35m";
-    case HASH('t','i','f','f'):     return "\33[01;35m";
-    case HASH('p','n','g'):         return "\33[01;35m";
-    case HASH('s','v','g'):         return "\33[01;35m";
-    case HASH('s','v','g','z'):     return "\33[01;35m";
-    case HASH('m','n','g'):         return "\33[01;35m";
-    case HASH('p','c','x'):         return "\33[01;35m";
-    case HASH('m','o','v'):         return "\33[01;35m";
-    case HASH('m','p','g'):         return "\33[01;35m";
-    case HASH('m','p','e','g'):     return "\33[01;35m";
-    case HASH('m','2','v'):         return "\33[01;35m";
-    case HASH('m','k','v'):         return "\33[01;35m";
-    case HASH('w','e','b','m'):     return "\33[01;35m";
-    case HASH('o','g','m'):         return "\33[01;35m";
-    case HASH('m','p','4'):         return "\33[01;35m";
-    case HASH('m','4','v'):         return "\33[01;35m";
-    case HASH('m','p','4','v'):     return "\33[01;35m";
-    case HASH('v','o','b'):         return "\33[01;35m";
-    case HASH('q','t'):             return "\33[01;35m";
-    case HASH('n','u','v'):         return "\33[01;35m";
-    case HASH('w','m','v'):         return "\33[01;35m";
-    case HASH('a','s','f'):         return "\33[01;35m";
-    case HASH('r','m'):             return "\33[01;35m";
-    case HASH('r','m','v','b'):     return "\33[01;35m";
-    case HASH('f','l','c'):         return "\33[01;35m";
-    case HASH('a','v','i'):         return "\33[01;35m";
-    case HASH('f','l','i'):         return "\33[01;35m";
-    case HASH('f','l','v'):         return "\33[01;35m";
-    case HASH('g','l'):             return "\33[01;35m";
-    case HASH('d','l'):             return "\33[01;35m";
-    case HASH('x','c','f'):         return "\33[01;35m";
-    case HASH('x','w','d'):         return "\33[01;35m";
-    case HASH('y','u','v'):         return "\33[01;35m";
-    case HASH('c','g','m'):         return "\33[01;35m";
-    case HASH('e','m','f'):         return "\33[01;35m";
+    case HASH('j','p','g'):         return DIRCOLOR_IMAGE;
+    case HASH('j','p','e','g'):     return DIRCOLOR_IMAGE;
+    case HASH('m','j','p','g'):     return DIRCOLOR_IMAGE;
+    case HASH('m','j','p','e','g'): return DIRCOLOR_IMAGE;
+    case HASH('g','i','f'):         return DIRCOLOR_IMAGE;
+    case HASH('b','m','p'):         return DIRCOLOR_IMAGE;
+    case HASH('p','b','m'):         return DIRCOLOR_IMAGE;
+    case HASH('p','g','m'):         return DIRCOLOR_IMAGE;
+    case HASH('p','p','m'):         return DIRCOLOR_IMAGE;
+    case HASH('t','g','a'):         return DIRCOLOR_IMAGE;
+    case HASH('x','b','m'):         return DIRCOLOR_IMAGE;
+    case HASH('x','p','m'):         return DIRCOLOR_IMAGE;
+    case HASH('t','i','f'):         return DIRCOLOR_IMAGE;
+    case HASH('t','i','f','f'):     return DIRCOLOR_IMAGE;
+    case HASH('p','n','g'):         return DIRCOLOR_IMAGE;
+    case HASH('s','v','g'):         return DIRCOLOR_IMAGE;
+    case HASH('s','v','g','z'):     return DIRCOLOR_IMAGE;
+    case HASH('m','n','g'):         return DIRCOLOR_IMAGE;
+    case HASH('p','c','x'):         return DIRCOLOR_IMAGE;
+    case HASH('m','o','v'):         return DIRCOLOR_IMAGE;
+    case HASH('m','p','g'):         return DIRCOLOR_IMAGE;
+    case HASH('m','p','e','g'):     return DIRCOLOR_IMAGE;
+    case HASH('m','2','v'):         return DIRCOLOR_IMAGE;
+    case HASH('m','k','v'):         return DIRCOLOR_IMAGE;
+    case HASH('w','e','b','m'):     return DIRCOLOR_IMAGE;
+    case HASH('o','g','m'):         return DIRCOLOR_IMAGE;
+    case HASH('m','p','4'):         return DIRCOLOR_IMAGE;
+    case HASH('m','4','v'):         return DIRCOLOR_IMAGE;
+    case HASH('m','p','4','v'):     return DIRCOLOR_IMAGE;
+    case HASH('v','o','b'):         return DIRCOLOR_IMAGE;
+    case HASH('q','t'):             return DIRCOLOR_IMAGE;
+    case HASH('n','u','v'):         return DIRCOLOR_IMAGE;
+    case HASH('w','m','v'):         return DIRCOLOR_IMAGE;
+    case HASH('a','s','f'):         return DIRCOLOR_IMAGE;
+    case HASH('r','m'):             return DIRCOLOR_IMAGE;
+    case HASH('r','m','v','b'):     return DIRCOLOR_IMAGE;
+    case HASH('f','l','c'):         return DIRCOLOR_IMAGE;
+    case HASH('a','v','i'):         return DIRCOLOR_IMAGE;
+    case HASH('f','l','i'):         return DIRCOLOR_IMAGE;
+    case HASH('f','l','v'):         return DIRCOLOR_IMAGE;
+    case HASH('g','l'):             return DIRCOLOR_IMAGE;
+    case HASH('d','l'):             return DIRCOLOR_IMAGE;
+    case HASH('x','c','f'):         return DIRCOLOR_IMAGE;
+    case HASH('x','w','d'):         return DIRCOLOR_IMAGE;
+    case HASH('y','u','v'):         return DIRCOLOR_IMAGE;
+    case HASH('c','g','m'):         return DIRCOLOR_IMAGE;
+    case HASH('e','m','f'):         return DIRCOLOR_IMAGE;
     // https://wiki.xiph.org/MIME_Types_and_File_Extensions
-    case HASH('o','g','v'):         return "\33[01;35m";
-    case HASH('o','g','x'):         return "\33[01;35m";
+    case HASH('o','g','v'):         return DIRCOLOR_IMAGE;
+    case HASH('o','g','x'):         return DIRCOLOR_IMAGE;
     // audio formats
-    case HASH('a','a','c'):         return "\33[00;36m";
-    case HASH('a','u'):             return "\33[00;36m";
-    case HASH('f','l','a','c'):     return "\33[00;36m";
-    case HASH('m','4','a'):         return "\33[00;36m";
-    case HASH('m','i','d'):         return "\33[00;36m";
-    case HASH('m','i','d','i'):     return "\33[00;36m";
-    case HASH('m','k','a'):         return "\33[00;36m";
-    case HASH('m','p','3'):         return "\33[00;36m";
-    case HASH('m','p','c'):         return "\33[00;36m";
-    case HASH('o','g','g'):         return "\33[00;36m";
-    case HASH('r','a'):             return "\33[00;36m";
-    case HASH('w','a','v'):         return "\33[00;36m";
+    case HASH('a','a','c'):         return DIRCOLOR_AUDIO;
+    case HASH('a','u'):             return DIRCOLOR_AUDIO;
+    case HASH('f','l','a','c'):     return DIRCOLOR_AUDIO;
+    case HASH('m','4','a'):         return DIRCOLOR_AUDIO;
+    case HASH('m','i','d'):         return DIRCOLOR_AUDIO;
+    case HASH('m','i','d','i'):     return DIRCOLOR_AUDIO;
+    case HASH('m','k','a'):         return DIRCOLOR_AUDIO;
+    case HASH('m','p','3'):         return DIRCOLOR_AUDIO;
+    case HASH('m','p','c'):         return DIRCOLOR_AUDIO;
+    case HASH('o','g','g'):         return DIRCOLOR_AUDIO;
+    case HASH('r','a'):             return DIRCOLOR_AUDIO;
+    case HASH('w','a','v'):         return DIRCOLOR_AUDIO;
     // https://wiki.xiph.org/MIME_Types_and_File_Extensions
-    case HASH('o','g','a'):         return "\33[00;36m";
-    case HASH('o','p','u','s'):     return "\33[00;36m";
-    case HASH('s','p','x'):         return "\33[00;36m";
-    case HASH('x','s','p','f'):     return "\33[00;36m";
+    case HASH('o','g','a'):         return DIRCOLOR_AUDIO;
+    case HASH('o','p','u','s'):     return DIRCOLOR_AUDIO;
+    case HASH('s','p','x'):         return DIRCOLOR_AUDIO;
+    case HASH('x','s','p','f'):     return DIRCOLOR_AUDIO;
 
     // 0 = hash failure (extension too long)
     case 0: return "";

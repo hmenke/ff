@@ -23,11 +23,7 @@
 // PCRE
 #include <pcre.h>
 
-typedef enum {
-    NONE,
-    GLOB,
-    REGEX
-} match_mode;
+typedef enum { NONE, GLOB, REGEX } match_mode;
 
 typedef struct {
     pcre *re;
@@ -60,7 +56,8 @@ void process_match(const char *realpath, const char *dirname,
     (void)basename;
 
     if (opt->colorize) {
-        printf("%s%s%s\n", dircolor(realpath), realpath, DIRCOLOR_RESET);
+        printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "\n",
+               dirname, dircolor(realpath), basename);
     } else {
         puts(realpath);
     }
@@ -95,7 +92,7 @@ void walk(const char *parent, size_t l_parent, options *opt, int depth) {
 
         // Assemble filename
         size_t l_current = l_parent + d_namlen + 1;
-        char *current = (char*)malloc((l_current + 1) * sizeof(char));
+        char *current = (char *)malloc((l_current + 1) * sizeof(char));
         strncpy(current, parent, l_parent);
         strncpy(current + l_parent, "/", 1);
         strncpy(current + l_parent + 1, d_name, d_namlen);
