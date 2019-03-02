@@ -71,23 +71,43 @@ const char *dircolor(const char *realpath) {
         perror("lstat failed");
     }
 
-    // clang-format off
     switch (statbuf.st_mode & S_IFMT) {
-    case S_IFBLK:  return DIRCOLOR_BLK;
-    case S_IFCHR:  return DIRCOLOR_CHR;
-    case S_IFDIR:  return DIRCOLOR_DIR;
-    case S_IFIFO:  return DIRCOLOR_IFO;
-    case S_IFLNK:  return DIRCOLOR_LINK;
-    case S_IFSOCK: return DIRCOLOR_SOCK;
-    case S_IFREG:  break;
-    default: break;
+    case S_IFBLK:
+        return DIRCOLOR_BLK;
+    case S_IFCHR:
+        return DIRCOLOR_CHR;
+    case S_IFDIR:
+        switch (statbuf.st_mode & (S_ISVTX | S_IWOTH)) {
+        case S_ISVTX | S_IWOTH:
+            return DIRCOLOR_STICKY_OTHER_WRITABLE;
+        case S_IWOTH:
+            return DIRCOLOR_OTHER_WRITABLE;
+        case S_ISVTX:
+            return DIRCOLOR_STICKY;
+        default:
+            return DIRCOLOR_DIR;
+        }
+    case S_IFIFO:
+        return DIRCOLOR_FIFO;
+    case S_IFLNK:
+        return DIRCOLOR_LINK;
+    case S_IFSOCK:
+        return DIRCOLOR_SOCK;
+    case S_IFREG:
+        if (statbuf.st_mode & S_ISUID) {
+            return DIRCOLOR_SETUID;
+        }
+        if (statbuf.st_mode & S_ISGID) {
+            return DIRCOLOR_SETGID;
+        }
+        if (statbuf.st_mode & S_IEXEC) {
+            return DIRCOLOR_EXEC;
+        }
+        break;
+    default:
+        break;
     }
 
-    if (statbuf.st_mode & S_IEXEC) { return DIRCOLOR_EXEC;   }
-    if (statbuf.st_mode & S_ISUID) { return DIRCOLOR_SETUID; }
-    if (statbuf.st_mode & S_ISGID) { return DIRCOLOR_SETGID; }
-    if (statbuf.st_mode & S_ISVTX) { return DIRCOLOR_STICKY; }
-    // clang-format on
 
     // Extract the extension
     const char *basename = strrchr(realpath, '/');
