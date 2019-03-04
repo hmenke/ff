@@ -16,6 +16,7 @@
 // POSIX C library
 #include <dirent.h>
 #include <fnmatch.h>
+#include <mqueue.h>
 #include <pthread.h>
 #include <unistd.h>
 
@@ -28,6 +29,9 @@
 typedef enum { NONE, GLOB, REGEX } match_mode;
 
 typedef struct {
+    int tid;
+    mqd_t *pmqdes;
+
     // tagged union
     union {
         pcre *re;
@@ -86,6 +90,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             }
         }
 
+        // TODO: dirs -= 1 (here?)
+
         // Assemble filename
         size_t l_current = l_parent + d_namlen + 1;
         char *current = (char *)malloc((l_current + 1) * sizeof(char));
@@ -121,6 +127,11 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         if (entry->d_type == DT_DIR) {
+            // TODO: dirs += 1
+            // mqd_t mqdes = *(opt->pmqdes);
+            // message *msg = message_new(depth + 1, current);
+            // message_send(mqdes, msg, 1);
+            // message_free(msg);
             walk(current, l_current, opt, depth + 1, re, extra, jit_stack,
                  glob_pattern, glob_flags);
         }
@@ -158,9 +169,24 @@ static void *worker(void *arg) {
         break;
     }
 
-    // Walk the directory tree
-    walk(opt->directory, strlen(opt->directory), opt, 0, re, extra, jit_stack,
-         glob_pattern, glob_flags);
+    // Connect to the message queue
+    mqd_t mqdes = *(opt->pmqdes);
+
+    struct mq_attr mqstat;
+    mq_getattr(mqdes, &mqstat);
+    char *buffer = (char *)malloc(mqstat.mq_msgsize * sizeof(char));
+
+    message *msg;
+    while ((msg = message_receive(mqdes, buffer, mqstat.mq_msgsize)) != NULL) {
+        int depth = message_depth(msg);
+        const char *path = message_path(msg);
+
+        // Walk the directory tree
+        walk(path, strlen(path), opt, depth, re, extra, jit_stack, glob_pattern,
+             glob_flags);
+
+        message_free(msg);
+    }
 
     // Cleanup
     switch (opt->mode) {
@@ -323,10 +349,46 @@ int main(int argc, char *argv[]) {
         break;
     }
 
-    // Go go go!
-    pthread_t thread;
-    pthread_create(&thread, NULL, &worker, &opt);
-    pthread_join(thread, NULL);
+    const int nthreads = 1;
+
+    // Open a new message queue
+    const char queue_name[] = "/ff";
+    mqd_t mqdes = mq_open(queue_name, O_CREAT | O_RDWR, 0644, NULL);
+    if (mqdes == (mqd_t)-1) {
+        perror("mq_open");
+        return 1;
+    }
+    opt.pmqdes = &mqdes;
+
+    // Start threads
+    pthread_t *thread = (pthread_t *)malloc(nthreads * sizeof(pthread_t));
+    for (int i = 0; i < nthreads; ++i) {
+        opt.tid = i;
+        pthread_create(&thread[i], NULL, &worker, &opt);
+    }
+
+    // TODO: dirs += 1
+
+    // Send the inital job
+    message *msg = message_new(0, opt.directory);
+    message_send(mqdes, msg, 1);
+    message_free(msg);
+
+    // TODO: Wait for dirs = 0
+
+    // Send termination signal
+    for (int i = 0; i < nthreads; ++i) {
+        if (mq_send(mqdes, "", 0, 0) != 0) {
+            perror("mq_send terminate");
+        }
+    }
+
+    for (int i = 0; i < nthreads; ++i) {
+        pthread_join(thread[i], NULL);
+    }
+
+    mq_close(mqdes);
+    mq_unlink(queue_name);
 
     return 0;
 }
