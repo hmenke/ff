@@ -145,11 +145,19 @@ void print_usage(const char *msg) {
         "Simplified version of GNU find using the PCRE library for regex.\n"
         "\n"
         "Valid options:\n"
-        "  --depth <n>     Maximum directory traversal depth\n"
-        "  --type (f|d)    Restrict output to type (f = file, d = directory)\n"
-        "  --glob          Match glob instead of regex\n"
-        "  -H, --hidden    Traverse hidden directories and files as well\n"
-        "  -I, --icase     Ignore case when applying the regex\n",
+        "  -d, --depth <n>    Maximum directory traversal depth\n"
+        "  -t, --type <x>     Restrict output to type with <x> one of\n"
+        "                         b   block device.\n"
+        "                         c   character device.\n"
+        "                         d   directory.\n"
+        "                         n   named pipe (FIFO).\n"
+        "                         l   symbolic link.\n"
+        "                         f   regular file.\n"
+        "                         s   UNIX domain socket.\n"
+        "  -g, --glob         Match glob instead of regex\n"
+        "  -H, --hidden       Traverse hidden directories and files as well\n"
+        "  -I, --icase        Ignore case when applying the regex\n"
+        "  -h, --help         Display this help and quit\n",
         stderr);
 }
 
@@ -166,48 +174,57 @@ int main(int argc, char *argv[]) {
     // Parse options
     int option_index = 0;
     static struct option long_options[] = {
-        {"depth", required_argument, NULL, 0},
-        {"type", required_argument, NULL, 0},
-        {"glob", no_argument, NULL, 0},
+        {"depth", required_argument, NULL, 'd'},
+        {"type", required_argument, NULL, 't'},
+        {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
         {"icase", no_argument, NULL, 'I'},
+        {"help", no_argument, NULL, 'h'},
         {0, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "HI", long_options, &option_index)) !=
+    while ((c = getopt_long(argc, argv, "d:t:gHIh", long_options, &option_index)) !=
            -1) {
         switch (c) {
-        case 0:
-            switch (option_index) {
-            case 0: // depth
-                assert(optarg);
-                opt.max_depth = (long)strtoul(optarg, NULL, 0);
-                if (opt.max_depth == 0 || errno == ERANGE) {
-                    print_usage("Invalid argument for --depth");
-                    return 1;
-                }
-                break;
-            case 1: // type
-                assert(optarg && strlen(optarg) > 0);
-                switch (optarg[0]) {
-                case 'f':
-                    opt.only_type = DT_REG;
-                    break;
-                case 'd':
-                    opt.only_type = DT_DIR;
-                    break;
-                default:
-                    print_usage("Invalid argument for --type");
-                    return 1;
-                }
-                break;
-            case 2: // glob
-                opt.mode = GLOB;
-                break;
-            default:
-                print_usage(NULL); // Can this even happen?
+        case 'd':
+            assert(optarg);
+            opt.max_depth = (long)strtoul(optarg, NULL, 0);
+            if (opt.max_depth == 0 || errno == ERANGE) {
+                print_usage("Invalid argument for --depth");
                 return 1;
             }
+            break;
+        case 't':
+            assert(optarg && strlen(optarg) > 0);
+            switch (optarg[0]) {
+            case 'b':
+                opt.only_type = DT_BLK;
+                break;
+            case 'c':
+                opt.only_type = DT_CHR;
+                break;
+            case 'd':
+                opt.only_type = DT_DIR;
+                break;
+            case 'n':
+                opt.only_type = DT_FIFO;
+                break;
+            case 'l':
+                opt.only_type = DT_LNK;
+                break;
+            case 'f':
+                opt.only_type = DT_REG;
+                break;
+            case 's':
+                opt.only_type = DT_SOCK;
+                break;
+            default:
+                print_usage("Invalid argument for --type");
+                return 1;
+            }
+            break;
+        case 'g': // glob
+            opt.mode = GLOB;
             break;
         case 'H':
             opt.skip_hidden = false;
@@ -215,6 +232,9 @@ int main(int argc, char *argv[]) {
         case 'I':
             icase = true;
             break;
+        case 'h':
+            print_usage(NULL);
+            return 0;
         default:
             print_usage(NULL);
             return 1;
