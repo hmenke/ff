@@ -42,19 +42,22 @@ typedef union {
 } match_options;
 
 typedef struct {
+    // tagged union
     match_options opts;
     match_mode mode;
+
+    // program parameters
+    const char * pattern;
     unsigned char only_type;
     bool skip_hidden;
     long max_depth;
     bool colorize;
+    bool icase;
 } options;
+
 
 void process_match(const char *realpath, const char *dirname,
                    const char *basename, options *opt) {
-    (void)dirname;
-    (void)basename;
-
     if (opt->colorize) {
         printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "\n",
                dirname, dircolor(realpath), basename);
@@ -63,7 +66,8 @@ void process_match(const char *realpath, const char *dirname,
     }
 }
 
-void walk(const char *parent, size_t l_parent, options *opt, int depth) {
+void walk(const char *parent, const size_t l_parent, options *opt,
+          const int depth) {
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
@@ -140,25 +144,24 @@ void print_usage(const char *msg) {
         fputs(msg, stderr);
         fputs("\n", stderr);
     }
-    fputs(
-        "Usage: ff [options] [pattern] [directory]\n"
-        "Simplified version of GNU find using the PCRE library for regex.\n"
-        "\n"
-        "Valid options:\n"
-        "  -d, --depth <n>    Maximum directory traversal depth\n"
-        "  -t, --type <x>     Restrict output to type with <x> one of\n"
-        "                         b   block device.\n"
-        "                         c   character device.\n"
-        "                         d   directory.\n"
-        "                         n   named pipe (FIFO).\n"
-        "                         l   symbolic link.\n"
-        "                         f   regular file.\n"
-        "                         s   UNIX domain socket.\n"
-        "  -g, --glob         Match glob instead of regex\n"
-        "  -H, --hidden       Traverse hidden directories and files as well\n"
-        "  -I, --icase        Ignore case when applying the regex\n"
-        "  -h, --help         Display this help and quit\n",
-        stderr);
+    fputs("Usage: ff [options] [pattern] [directory]\n"
+          "Simplified version of GNU find using the PCRE library for regex.\n"
+          "\n"
+          "Valid options:\n"
+          "  -d, --depth <n>    Maximum directory traversal depth\n"
+          "  -t, --type <x>     Restrict output to type with <x> one of\n"
+          "                         b   block device.\n"
+          "                         c   character device.\n"
+          "                         d   directory.\n"
+          "                         n   named pipe (FIFO).\n"
+          "                         l   symbolic link.\n"
+          "                         f   regular file.\n"
+          "                         s   UNIX domain socket.\n"
+          "  -g, --glob         Match glob instead of regex\n"
+          "  -H, --hidden       Traverse hidden directories and files as well\n"
+          "  -I, --icase        Ignore case when applying the regex\n"
+          "  -h, --help         Display this help and quit\n",
+          stderr);
 }
 
 int main(int argc, char *argv[]) {
@@ -168,8 +171,7 @@ int main(int argc, char *argv[]) {
     opt.skip_hidden = true;
     opt.max_depth = -1;
     opt.colorize = isatty(fileno(stdout));
-
-    bool icase = false;
+    opt.icase = false;
 
     // Parse options
     int option_index = 0;
@@ -183,8 +185,8 @@ int main(int argc, char *argv[]) {
         {0, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:gHIh", long_options, &option_index)) !=
-           -1) {
+    while ((c = getopt_long(argc, argv, "d:t:gHIh", long_options,
+                            &option_index)) != -1) {
         switch (c) {
         case 'd':
             assert(optarg);
@@ -230,7 +232,7 @@ int main(int argc, char *argv[]) {
             opt.skip_hidden = false;
             break;
         case 'I':
-            icase = true;
+            opt.icase = true;
             break;
         case 'h':
             print_usage(NULL);
@@ -241,7 +243,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    const char *pattern = "";
+    opt.pattern = "";
     const char *directory = ".";
     switch (argc - optind) {
     case 2:
@@ -249,8 +251,8 @@ int main(int argc, char *argv[]) {
         goto fallthrough;
     case 1:
     fallthrough:
-        pattern = argv[optind];
-        if (strlen(pattern) > 0 && opt.mode == NONE) {
+        opt.pattern = argv[optind];
+        if (strlen(opt.pattern) > 0 && opt.mode == NONE) {
             opt.mode = REGEX;
         }
         break;
@@ -268,13 +270,13 @@ int main(int argc, char *argv[]) {
         opt.opts.regex.extra = NULL;
         opt.opts.regex.jit_stack = NULL;
 
-        int flags = icase ? PCRE_CASELESS : 0;
+        int flags = opt.icase ? PCRE_CASELESS : 0;
 
         // Compile pattern
         const char *error;
         int erroffset;
         opt.opts.regex.re =
-            pcre_compile(pattern, flags, &error, &erroffset, NULL);
+            pcre_compile(opt.pattern, flags, &error, &erroffset, NULL);
         if (opt.opts.regex.re == NULL) {
             fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
             return 1;
@@ -288,8 +290,8 @@ int main(int argc, char *argv[]) {
                               opt.opts.regex.jit_stack);
     } break;
     case GLOB:
-        opt.opts.glob.pattern = pattern;
-        opt.opts.glob.flags = icase ? FNM_CASEFOLD : 0;
+        opt.opts.glob.pattern = opt.pattern;
+        opt.opts.glob.flags = opt.icase ? FNM_CASEFOLD : 0;
         break;
     case NONE:
         break;
