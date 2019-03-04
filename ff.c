@@ -3,6 +3,7 @@
 #endif
 
 #include "dircolors.h"
+#include "serialize.h"
 
 // C standard library
 #include <assert.h>
@@ -15,6 +16,7 @@
 // POSIX C library
 #include <dirent.h>
 #include <fnmatch.h>
+#include <pthread.h>
 #include <unistd.h>
 
 // GNU C library
@@ -26,28 +28,15 @@
 typedef enum { NONE, GLOB, REGEX } match_mode;
 
 typedef struct {
-    pcre *re;
-    pcre_extra *extra;
-    pcre_jit_stack *jit_stack;
-} regex_options;
-
-typedef struct {
-    const char *pattern;
-    int flags;
-} glob_options;
-
-typedef union {
-    regex_options regex;
-    glob_options glob;
-} match_options;
-
-typedef struct {
     // tagged union
-    match_options opts;
+    union {
+        pcre *re;
+        const char *pattern;
+    } match;
     match_mode mode;
 
     // program parameters
-    const char * pattern;
+    const char *directory;
     unsigned char only_type;
     bool skip_hidden;
     long max_depth;
@@ -55,9 +44,8 @@ typedef struct {
     bool icase;
 } options;
 
-
 void process_match(const char *realpath, const char *dirname,
-                   const char *basename, options *opt) {
+                   const char *basename, const options *const opt) {
     if (opt->colorize) {
         printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "\n",
                dirname, dircolor(realpath), basename);
@@ -66,8 +54,12 @@ void process_match(const char *realpath, const char *dirname,
     }
 }
 
-void walk(const char *parent, const size_t l_parent, options *opt,
-          const int depth) {
+void walk(const char *parent, const size_t l_parent, const options *const opt,
+          const int depth,
+          // PCRE
+          pcre *re, pcre_extra *extra, pcre_jit_stack *jit_stack,
+          // GLOB
+          const char *glob_pattern, int glob_flags) {
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
@@ -106,16 +98,14 @@ void walk(const char *parent, const size_t l_parent, options *opt,
         switch (opt->mode) {
         case REGEX: {
             int ovector[3];
-            if (pcre_jit_exec(opt->opts.regex.re, opt->opts.regex.extra, d_name,
-                              d_namlen, 0, 0, ovector, 3,
-                              opt->opts.regex.jit_stack) > 0) {
+            if (pcre_jit_exec(re, extra, d_name, d_namlen, 0, 0, ovector, 3,
+                              jit_stack) > 0) {
                 goto success;
             }
             break;
         }
         case GLOB:
-            if (fnmatch(opt->opts.glob.pattern, d_name, opt->opts.glob.flags) ==
-                0) {
+            if (fnmatch(glob_pattern, d_name, glob_flags) == 0) {
                 goto success;
             }
             break;
@@ -131,12 +121,61 @@ void walk(const char *parent, const size_t l_parent, options *opt,
         }
 
         if (entry->d_type == DT_DIR) {
-            walk(current, l_current, opt, depth + 1);
+            walk(current, l_current, opt, depth + 1, re, extra, jit_stack,
+                 glob_pattern, glob_flags);
         }
 
         free(current);
     }
     closedir(d);
+}
+
+static void *worker(void *arg) {
+    const options *const opt = (options *)arg;
+
+    pcre *re = NULL;
+    pcre_extra *extra = NULL;
+    pcre_jit_stack *jit_stack = NULL;
+
+    const char *glob_pattern = NULL;
+    int glob_flags = 0;
+
+    switch (opt->mode) {
+    case REGEX: {
+        // Compile pattern
+        const char *error;
+        extra = pcre_study(opt->match.re, PCRE_STUDY_JIT_COMPILE, &error);
+        assert(extra != NULL);
+        jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+        assert(jit_stack != NULL);
+        pcre_assign_jit_stack(extra, NULL, jit_stack);
+    } break;
+    case GLOB:
+        glob_pattern = opt->match.pattern;
+        glob_flags = opt->icase ? FNM_CASEFOLD : 0;
+        break;
+    case NONE:
+        break;
+    }
+
+    // Walk the directory tree
+    walk(opt->directory, strlen(opt->directory), opt, 0, re, extra, jit_stack,
+         glob_pattern, glob_flags);
+
+    // Cleanup
+    switch (opt->mode) {
+    case REGEX:
+        pcre_free(re);
+        pcre_free_study(extra);
+        pcre_jit_stack_free(jit_stack);
+        break;
+    case GLOB:
+        break;
+    case NONE:
+        break;
+    }
+
+    return NULL;
 }
 
 void print_usage(const char *msg) {
@@ -243,16 +282,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    opt.pattern = "";
-    const char *directory = ".";
+    const char *pattern = "";
+    opt.directory = ".";
     switch (argc - optind) {
     case 2:
-        directory = argv[optind + 1];
+        opt.directory = argv[optind + 1];
         goto fallthrough;
     case 1:
     fallthrough:
-        opt.pattern = argv[optind];
-        if (strlen(opt.pattern) > 0 && opt.mode == NONE) {
+        pattern = argv[optind];
+        if (strlen(pattern) > 0 && opt.mode == NONE) {
             opt.mode = REGEX;
         }
         break;
@@ -266,55 +305,28 @@ int main(int argc, char *argv[]) {
 
     switch (opt.mode) {
     case REGEX: {
-        opt.opts.regex.re = NULL;
-        opt.opts.regex.extra = NULL;
-        opt.opts.regex.jit_stack = NULL;
-
         int flags = opt.icase ? PCRE_CASELESS : 0;
 
         // Compile pattern
         const char *error;
         int erroffset;
-        opt.opts.regex.re =
-            pcre_compile(opt.pattern, flags, &error, &erroffset, NULL);
-        if (opt.opts.regex.re == NULL) {
+        opt.match.re = pcre_compile(pattern, flags, &error, &erroffset, NULL);
+        if (opt.match.re == NULL) {
             fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
             return 1;
         }
-        opt.opts.regex.extra =
-            pcre_study(opt.opts.regex.re, PCRE_STUDY_JIT_COMPILE, &error);
-        assert(opt.opts.regex.extra != NULL);
-        opt.opts.regex.jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-        assert(opt.opts.regex.jit_stack != NULL);
-        pcre_assign_jit_stack(opt.opts.regex.extra, NULL,
-                              opt.opts.regex.jit_stack);
     } break;
     case GLOB:
-        opt.opts.glob.pattern = opt.pattern;
-        opt.opts.glob.flags = opt.icase ? FNM_CASEFOLD : 0;
+        opt.match.pattern = pattern;
         break;
     case NONE:
         break;
-    default:
-        abort(); // Can't happen
     }
 
-    // Walk the directory tree
-    walk(directory, strlen(directory), &opt, 0);
+    // Go go go!
+    pthread_t thread;
+    pthread_create(&thread, NULL, &worker, &opt);
+    pthread_join(thread, NULL);
 
-    // Cleanup
-    switch (opt.mode) {
-    case REGEX:
-        pcre_free(opt.opts.regex.re);
-        pcre_free_study(opt.opts.regex.extra);
-        pcre_jit_stack_free(opt.opts.regex.jit_stack);
-        break;
-    case GLOB:
-        break;
-    case NONE:
-        break;
-    default:
-        abort(); // Can't happen
-    }
     return 0;
 }
