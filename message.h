@@ -23,5 +23,5 @@ void archive_free(archive *ar);
 archive *message_serialize(const message *msg);
 message *message_unserialize(const char *buffer);
 
-int message_send(mqd_t mqdes, const message *msg, unsigned int msg_prio);
+void message_send(mqd_t mqdes, const message *msg, unsigned int msg_prio);
 message *message_receive(mqd_t mqdes, char *buffer, size_t size);

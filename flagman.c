@@ -1,7 +1,6 @@
 #include "flagman.h"
 
 // C standard library
-#include <stdio.h>
 #include <stdlib.h>
 
 // POSIX C library
@@ -40,7 +39,6 @@ void flagman_acquire(flagman *flagman_lock) {
         pthread_mutex_lock(&flagman_lock->completion_lock);
     }
     flagman_lock->count += 1;
-    printf("DEBUG: flagman_acquire %d\n", flagman_lock->count);
     pthread_mutex_unlock(&flagman_lock->count_lock);
 }
 
@@ -54,7 +52,6 @@ void flagman_release(flagman *flagman_lock) {
         pthread_mutex_unlock(&flagman_lock->completion_lock);
     }
 unlock_count:
-    printf("DEBUG: flagman_release %d\n", flagman_lock->count);
     pthread_mutex_unlock(&flagman_lock->count_lock);
 }
 

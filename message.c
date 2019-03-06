@@ -109,11 +109,12 @@ message *message_unserialize(const char *buffer) {
 
 // Interaction with mqueue
 
-int message_send(mqd_t mqdes, const message *msg, unsigned int msg_prio) {
+void message_send(mqd_t mqdes, const message *msg, unsigned int msg_prio) {
     archive *ar = message_serialize(msg);
-    int ret = mq_send(mqdes, archive_data(ar), archive_size(ar), msg_prio);
+    if (mq_send(mqdes, archive_data(ar), archive_size(ar), msg_prio) != 0) {
+        perror("mq_send");
+    }
     archive_free(ar);
-    return ret;
 }
 
 message *message_receive(mqd_t mqdes, char *buffer, size_t size) {

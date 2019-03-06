@@ -119,8 +119,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         success:
             if (opt->only_type == DT_UNKNOWN ||
                 opt->only_type == entry->d_type) {
-                //process_match(current, parent, d_name, opt);
-                printf("%d %s\n", depth, current);
+                process_match(current, parent, d_name, opt);
             }
             break;
         }
