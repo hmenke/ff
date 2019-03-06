@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "serialize.h"
+#include "message.h"
 
 // C standard library
 #include <stdio.h>
@@ -16,17 +16,21 @@
 
 struct _message {
     int i;
+    size_t len;
     char *str;
 };
 
-message *message_new(int i, const char *str) {
+message *message_new(int i, size_t len, const char *str) {
     message *msg = (message *)malloc(sizeof(message));
     msg->i = i;
+    msg->len = len;
     msg->str = str ? strdup(str) : NULL;
     return msg;
 }
 
 int message_depth(message *msg) { return msg->i; }
+
+size_t message_len(message *msg) { return msg->len; }
 
 char *message_path(message *msg) { return msg->str; }
 
@@ -66,14 +70,17 @@ void archive_free(archive *ar) {
 archive *message_serialize(const message *msg) {
     archive *ar = archive_new(0, NULL);
 
-    size_t len = strlen(msg->str) + 1;
-    ar->size = sizeof(int) + len * sizeof(char);
+    size_t len = msg->len + 1;
+    ar->size = sizeof(int) + sizeof(size_t) + len * sizeof(char);
 
     ar->data = (char *)malloc(ar->size);
     size_t offset = 0;
 
     memcpy(ar->data + offset, &msg->i, sizeof(int));
     offset += sizeof(int);
+
+    memcpy(ar->data + offset, &msg->len, sizeof(size_t));
+    offset += sizeof(size_t);
 
     memcpy(ar->data + offset, msg->str, len * sizeof(char));
     //offset += len * sizeof(char);
@@ -82,16 +89,20 @@ archive *message_serialize(const message *msg) {
 }
 
 message *message_unserialize(const char *buffer) {
-    message *msg = message_new(0, NULL);
+    message *msg = message_new(0, 0, NULL);
 
     size_t offset = 0;
 
     memcpy(&msg->i, buffer + offset, sizeof(int));
     offset += sizeof(int);
 
-    // I hope you serialized that null terminator
-    msg->str = strdup(buffer + offset);
-    //offset += strlen(msg->str) + 1;
+    memcpy(&msg->len, buffer + offset, sizeof(size_t));
+    offset += sizeof(size_t);
+
+    size_t len = msg->len + 1;
+    msg->str = (char *)malloc(len * sizeof(char));
+    memcpy(msg->str, buffer + offset, len * sizeof(char));
+    //offset += len * sizeof(char);
 
     return msg;
 }

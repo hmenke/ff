@@ -8,8 +8,9 @@
 
 typedef struct _message message;
 
-message *message_new(int depth, const char *path);
+message *message_new(int depth, size_t len, const char *path);
 int message_depth(message *msg);
+size_t message_len(message *msg);
 char *message_path(message *msg);
 void message_free(message *msg);
 

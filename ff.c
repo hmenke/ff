@@ -3,7 +3,8 @@
 #endif
 
 #include "dircolors.h"
-#include "serialize.h"
+#include "flagman.h"
+#include "message.h"
 
 // C standard library
 #include <assert.h>
@@ -29,8 +30,8 @@
 typedef enum { NONE, GLOB, REGEX } match_mode;
 
 typedef struct {
-    int tid;
     mqd_t *pmqdes;
+    flagman *flagman_lock;
 
     // tagged union
     union {
@@ -70,6 +71,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
     DIR *d = opendir(parent);
     if (d == NULL) {
+        puts("Fuck!");
         return;
     }
 
@@ -89,8 +91,6 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                 continue;
             }
         }
-
-        // TODO: dirs -= 1 (here?)
 
         // Assemble filename
         size_t l_current = l_parent + d_namlen + 1;
@@ -119,21 +119,19 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         success:
             if (opt->only_type == DT_UNKNOWN ||
                 opt->only_type == entry->d_type) {
-                process_match(current, parent, d_name, opt);
+                //process_match(current, parent, d_name, opt);
+                printf("%d %s\n", depth, current);
             }
             break;
-        default:
-            abort(); // Can't happen
         }
 
         if (entry->d_type == DT_DIR) {
-            // TODO: dirs += 1
-            // mqd_t mqdes = *(opt->pmqdes);
-            // message *msg = message_new(depth + 1, current);
-            // message_send(mqdes, msg, 1);
-            // message_free(msg);
-            walk(current, l_current, opt, depth + 1, re, extra, jit_stack,
-                 glob_pattern, glob_flags);
+            flagman_acquire(opt->flagman_lock);
+            message *m = message_new(depth + 1, l_current, current);
+            message_send(*(opt->pmqdes), m, depth + 1);
+            message_free(m);
+            //walk(current, l_current, opt, depth + 1, re, extra, jit_stack,
+            //     glob_pattern, glob_flags);
         }
 
         free(current);
@@ -179,12 +177,13 @@ static void *worker(void *arg) {
     message *msg;
     while ((msg = message_receive(mqdes, buffer, mqstat.mq_msgsize)) != NULL) {
         int depth = message_depth(msg);
-        const char *path = message_path(msg);
+        size_t l_parent = message_len(msg);
+        const char *parent = message_path(msg);
 
         // Walk the directory tree
-        walk(path, strlen(path), opt, depth, re, extra, jit_stack, glob_pattern,
+        walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
              glob_flags);
-
+        flagman_release(opt->flagman_lock);
         message_free(msg);
     }
 
@@ -351,8 +350,14 @@ int main(int argc, char *argv[]) {
 
     const int nthreads = 1;
 
-    // Open a new message queue
     const char queue_name[] = "/ff";
+    // Remove the message queue to clear messages
+    if (mq_unlink(queue_name) != 0) {
+        if (errno != ENOENT) {
+            perror("Cannot clear message queue");
+        }
+    }
+    // Open a new message queue
     mqd_t mqdes = mq_open(queue_name, O_CREAT | O_RDWR, 0644, NULL);
     if (mqdes == (mqd_t)-1) {
         perror("mq_open");
@@ -360,23 +365,24 @@ int main(int argc, char *argv[]) {
     }
     opt.pmqdes = &mqdes;
 
+    // Acquire the flagman lock
+    opt.flagman_lock = flagman_new();
+    flagman_acquire(opt.flagman_lock);
+
     // Start threads
     pthread_t *thread = (pthread_t *)malloc(nthreads * sizeof(pthread_t));
     for (int i = 0; i < nthreads; ++i) {
-        opt.tid = i;
         pthread_create(&thread[i], NULL, &worker, &opt);
     }
 
-    // TODO: dirs += 1
-
     // Send the inital job
-    message *msg = message_new(0, opt.directory);
-    message_send(mqdes, msg, 1);
+    int depth = 0;
+    message *msg = message_new(depth, strlen(opt.directory), opt.directory);
+    message_send(mqdes, msg, depth);
     message_free(msg);
 
-    // TODO: Wait for dirs = 0
-
     // Send termination signal
+    flagman_wait(opt.flagman_lock);
     for (int i = 0; i < nthreads; ++i) {
         if (mq_send(mqdes, "", 0, 0) != 0) {
             perror("mq_send terminate");
@@ -387,6 +393,7 @@ int main(int argc, char *argv[]) {
         pthread_join(thread[i], NULL);
     }
 
+    flagman_free(opt.flagman_lock);
     mq_close(mqdes);
     mq_unlink(queue_name);
 
