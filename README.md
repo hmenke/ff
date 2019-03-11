@@ -15,9 +15,9 @@ your POSIX system.
 - Convenient syntax: `ff PATTERN` instead of `find -iname '*PATTERN*'`
 - Ignores hidden directories and files, by default
 - Regular expressions and shell glob patterns
+- Parallel directory traversal
 
 ## Future features (hopefully)
 
-- Parallel directory traversal
 - Command execution
 - Exclude files and directories
