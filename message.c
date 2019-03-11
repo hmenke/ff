@@ -11,8 +11,8 @@
 
 // POSIX C library
 #include <mqueue.h>
-
-// opaque message and archive types
+#include <pthread.h>
+#include <semaphore.h>
 
 struct _message {
     int i;
@@ -40,94 +40,74 @@ void message_free(message *msg) {
     msg = NULL;
 }
 
-struct _archive {
-    size_t size;
-    char *data;
+typedef struct _node node;
+struct _node {
+    size_t priority;
+    message *msg;
+    node *next;
 };
 
-static archive *archive_new(size_t size, const char *data) {
-    archive *ar = (archive *)malloc(sizeof(archive));
-    ar->data = NULL;
-    ar->size = size;
-    if (size > 0) {
-        memcpy(ar->data, data, size);
+struct _queue {
+    sem_t length;
+    node *head;
+    node *tail;
+    pthread_mutex_t lock;
+};
+
+queue *queue_new() {
+    queue *q = (queue *)malloc(sizeof(queue));
+    sem_init(&q->length, 0, 0);
+    q->head = NULL;
+    q->tail = NULL;
+    pthread_mutex_init(&q->lock, NULL);
+    return q;
+}
+
+void queue_free(queue *q) {
+    sem_destroy(&q->length);
+    pthread_mutex_destroy(&q->lock);
+    free(q);
+}
+
+void queue_put(queue *q, message *msg, size_t priority) {
+    node *new = (node *)malloc(sizeof(node));
+    new->priority = priority;
+    new->msg = msg;
+    new->next = NULL;
+
+    pthread_mutex_lock(&q->lock);
+    int length;
+    sem_getvalue(&q->length, &length);
+    if (length == 0) {
+        q->head = new;
+        q->tail = new;
+        goto unlock;
     }
-    return ar;
+
+    node *p = q->head;
+    while (p != q->tail && p->priority > priority) {
+        if (p->next == NULL) {
+            break;
+        }
+        p = p->next;
+    }
+
+    node *next = p->next;
+    p->next = new;
+    new->next = next;
+
+unlock:
+    pthread_mutex_unlock(&q->lock);
+    sem_post(&q->length);
 }
 
-size_t archive_size(archive *ar) { return ar->size; }
-
-char *archive_data(archive *ar) { return ar->data; }
-
-void archive_free(archive *ar) {
-    free(ar->data);
-    free(ar);
-    ar = NULL;
-}
-
-// serialization functions
-
-archive *message_serialize(const message *msg) {
-    archive *ar = archive_new(0, NULL);
-
-    size_t len = msg->len + 1;
-    ar->size = sizeof(int) + sizeof(size_t) + len * sizeof(char);
-
-    ar->data = (char *)malloc(ar->size);
-    size_t offset = 0;
-
-    memcpy(ar->data + offset, &msg->i, sizeof(int));
-    offset += sizeof(int);
-
-    memcpy(ar->data + offset, &msg->len, sizeof(size_t));
-    offset += sizeof(size_t);
-
-    memcpy(ar->data + offset, msg->str, len * sizeof(char));
-    //offset += len * sizeof(char);
-
-    return ar;
-}
-
-message *message_unserialize(const char *buffer) {
-    message *msg = message_new(0, 0, NULL);
-
-    size_t offset = 0;
-
-    memcpy(&msg->i, buffer + offset, sizeof(int));
-    offset += sizeof(int);
-
-    memcpy(&msg->len, buffer + offset, sizeof(size_t));
-    offset += sizeof(size_t);
-
-    size_t len = msg->len + 1;
-    msg->str = (char *)malloc(len * sizeof(char));
-    memcpy(msg->str, buffer + offset, len * sizeof(char));
-    //offset += len * sizeof(char);
-
+message *queue_get(queue *q) {
+    sem_wait(&q->length);
+    pthread_mutex_lock(&q->lock);
+    message *msg = q->head->msg;
+    node *oldhead = q->head;
+    q->head = q->head->next;
+    free(oldhead);
+    pthread_mutex_unlock(&q->lock);
     return msg;
-}
-
-// Interaction with mqueue
-
-void message_send(mqd_t mqdes, const message *msg, unsigned int msg_prio) {
-    archive *ar = message_serialize(msg);
-    if (mq_send(mqdes, archive_data(ar), archive_size(ar), msg_prio) != 0) {
-        perror("mq_send");
-    }
-    archive_free(ar);
-}
-
-message *message_receive(mqd_t mqdes, char *buffer, size_t size) {
-    switch (mq_receive(mqdes, buffer, size, NULL)) {
-    case 0:
-        return NULL;
-        break;
-    case -1:
-        perror("mq_receive");
-        return NULL;
-        break;
-    default:
-        return message_unserialize(buffer);
-        break;
-    }
 }

@@ -17,8 +17,8 @@
 // POSIX C library
 #include <dirent.h>
 #include <fnmatch.h>
-#include <mqueue.h>
 #include <pthread.h>
+#include <sys/sysinfo.h>
 #include <unistd.h>
 
 // GNU C library
@@ -30,7 +30,7 @@
 typedef enum { NONE, GLOB, REGEX } match_mode;
 
 typedef struct {
-    mqd_t *pmqdes;
+    queue *q;
     flagman *flagman_lock;
 
     // tagged union
@@ -127,10 +127,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         if (entry->d_type == DT_DIR) {
             flagman_acquire(opt->flagman_lock);
             message *m = message_new(depth + 1, l_current, current);
-            message_send(*(opt->pmqdes), m, depth + 1);
-            message_free(m);
-            //walk(current, l_current, opt, depth + 1, re, extra, jit_stack,
-            //     glob_pattern, glob_flags);
+            queue_put(opt->q, m, depth + 1);
         }
 
         free(current);
@@ -166,15 +163,8 @@ static void *worker(void *arg) {
         break;
     }
 
-    // Connect to the message queue
-    mqd_t mqdes = *(opt->pmqdes);
-
-    struct mq_attr mqstat;
-    mq_getattr(mqdes, &mqstat);
-    char *buffer = (char *)malloc(mqstat.mq_msgsize * sizeof(char));
-
-    message *msg;
-    while ((msg = message_receive(mqdes, buffer, mqstat.mq_msgsize)) != NULL) {
+    message *msg = NULL;
+    while ((msg = queue_get(opt->q)) != NULL) {
         int depth = message_depth(msg);
         size_t l_parent = message_len(msg);
         const char *parent = message_path(msg);
@@ -236,6 +226,8 @@ int main(int argc, char *argv[]) {
     opt.colorize = isatty(fileno(stdout));
     opt.icase = false;
 
+    long nthreads = get_nprocs();
+
     // Parse options
     int option_index = 0;
     static struct option long_options[] = {
@@ -244,11 +236,12 @@ int main(int argc, char *argv[]) {
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
         {"icase", no_argument, NULL, 'I'},
+        {"nthreads", required_argument, NULL, 'N'},
         {"help", no_argument, NULL, 'h'},
-        {0, 0, NULL, 0}};
+        {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:gHIh", long_options,
+    while ((c = getopt_long(argc, argv, "d:t:gHNIh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         case 'd':
@@ -296,6 +289,13 @@ int main(int argc, char *argv[]) {
             break;
         case 'I':
             opt.icase = true;
+            break;
+        case 'N':
+            nthreads = (long)strtoul(optarg, NULL, 0);
+            if (nthreads == 0 || errno == ERANGE) {
+                print_usage("Invalid argument for --depth");
+                return 1;
+            }
             break;
         case 'h':
             print_usage(NULL);
@@ -347,22 +347,8 @@ int main(int argc, char *argv[]) {
         break;
     }
 
-    const int nthreads = 1;
-
-    const char queue_name[] = "/ff";
-    // Remove the message queue to clear messages
-    if (mq_unlink(queue_name) != 0) {
-        if (errno != ENOENT) {
-            perror("Cannot clear message queue");
-        }
-    }
     // Open a new message queue
-    mqd_t mqdes = mq_open(queue_name, O_CREAT | O_RDWR, 0644, NULL);
-    if (mqdes == (mqd_t)-1) {
-        perror("mq_open");
-        return 1;
-    }
-    opt.pmqdes = &mqdes;
+    opt.q = queue_new();
 
     // Acquire the flagman lock
     opt.flagman_lock = flagman_new();
@@ -377,24 +363,21 @@ int main(int argc, char *argv[]) {
     // Send the inital job
     int depth = 0;
     message *msg = message_new(depth, strlen(opt.directory), opt.directory);
-    message_send(mqdes, msg, depth);
-    message_free(msg);
+    queue_put(opt.q, msg, depth);
 
     // Send termination signal
     flagman_wait(opt.flagman_lock);
     for (int i = 0; i < nthreads; ++i) {
-        if (mq_send(mqdes, "", 0, 0) != 0) {
-            perror("mq_send terminate");
-        }
+        queue_put(opt.q, NULL, 0);
     }
 
     for (int i = 0; i < nthreads; ++i) {
         pthread_join(thread[i], NULL);
     }
 
+    free(thread);
     flagman_free(opt.flagman_lock);
-    mq_close(mqdes);
-    mq_unlink(queue_name);
+    queue_free(opt.q);
 
     return 0;
 }
