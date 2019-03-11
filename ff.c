@@ -70,7 +70,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         return;
     }
 
-    with_opendir(entry, parent) {
+    foreach_opendir(entry, parent) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
 
@@ -156,7 +156,7 @@ static void *worker(void *arg) {
         break;
     }
 
-    with_queue_get(msg, opt->q) {
+    foreach_queue_get(msg, opt->q) {
         int depth = message_depth(msg);
         size_t l_parent = message_len(msg);
         const char *parent = message_path(msg);
