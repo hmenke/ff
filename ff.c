@@ -4,6 +4,7 @@
 
 #include "dircolors.h"
 #include "flagman.h"
+#include "macros.h"
 #include "message.h"
 
 // C standard library
@@ -69,14 +70,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         return;
     }
 
-    DIR *d = opendir(parent);
-    if (d == NULL) {
-        puts("Fuck!");
-        return;
-    }
-
-    struct dirent *entry;
-    while ((entry = readdir(d)) != NULL) {
+    with_opendir(entry, parent) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
 
@@ -132,7 +126,6 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
         free(current);
     }
-    closedir(d);
 }
 
 static void *worker(void *arg) {
@@ -163,8 +156,7 @@ static void *worker(void *arg) {
         break;
     }
 
-    message *msg = NULL;
-    while ((msg = queue_get(opt->q)) != NULL) {
+    with_queue_get(msg, opt->q) {
         int depth = message_depth(msg);
         size_t l_parent = message_len(msg);
         const char *parent = message_path(msg);
@@ -173,13 +165,11 @@ static void *worker(void *arg) {
         walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
              glob_flags);
         flagman_release(opt->flagman_lock);
-        message_free(msg);
     }
 
     // Cleanup
     switch (opt->mode) {
     case REGEX:
-        pcre_free(re);
         pcre_free_study(extra);
         pcre_jit_stack_free(jit_stack);
         break;
@@ -201,19 +191,20 @@ void print_usage(const char *msg) {
           "Simplified version of GNU find using the PCRE library for regex.\n"
           "\n"
           "Valid options:\n"
-          "  -d, --depth <n>    Maximum directory traversal depth\n"
-          "  -t, --type <x>     Restrict output to type with <x> one of\n"
-          "                         b   block device.\n"
-          "                         c   character device.\n"
-          "                         d   directory.\n"
-          "                         n   named pipe (FIFO).\n"
-          "                         l   symbolic link.\n"
-          "                         f   regular file.\n"
-          "                         s   UNIX domain socket.\n"
-          "  -g, --glob         Match glob instead of regex\n"
-          "  -H, --hidden       Traverse hidden directories and files as well\n"
-          "  -I, --icase        Ignore case when applying the regex\n"
-          "  -h, --help         Display this help and quit\n",
+          "  -d, --depth <n>      Maximum directory traversal depth\n"
+          "  -t, --type <x>       Restrict output to type with <x> one of\n"
+          "                           b   block device.\n"
+          "                           c   character device.\n"
+          "                           d   directory.\n"
+          "                           n   named pipe (FIFO).\n"
+          "                           l   symbolic link.\n"
+          "                           f   regular file.\n"
+          "                           s   UNIX domain socket.\n"
+          "  -n, --nthreads <n>   Use <n> threads for parallel directory traversal\n"
+          "  -g, --glob           Match glob instead of regex\n"
+          "  -H, --hidden         Traverse hidden directories and files as well\n"
+          "  -I, --icase          Ignore case when applying the regex\n"
+          "  -h, --help           Display this help and quit\n",
           stderr);
 }
 
@@ -362,18 +353,21 @@ int main(int argc, char *argv[]) {
     }
 
     // Send the inital job
-    int depth = 0;
-    message *msg = message_new(depth, strlen(opt.directory), opt.directory);
-    queue_put(opt.q, msg, depth);
+    message *msg = message_new(0, strlen(opt.directory), opt.directory);
+    queue_put_head(opt.q, msg);
 
     // Send termination signal
     flagman_wait(opt.flagman_lock);
     for (int i = 0; i < nthreads; ++i) {
-        queue_put(opt.q, NULL, 0);
+        queue_put_tail(opt.q, NULL);
     }
 
     for (int i = 0; i < nthreads; ++i) {
         pthread_join(thread[i], NULL);
+    }
+
+    if (opt.mode == REGEX) {
+        pcre_free(opt.match.re);
     }
 
     free(thread);

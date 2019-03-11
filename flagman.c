@@ -1,4 +1,5 @@
 #include "flagman.h"
+#include "macros.h"
 
 // C standard library
 #include <stdlib.h>
@@ -34,25 +35,24 @@ void flagman_free(flagman *flagman_lock) {
 }
 
 void flagman_acquire(flagman *flagman_lock) {
-    pthread_mutex_lock(&flagman_lock->count_lock);
-    if (flagman_lock->count == 0) {
-        pthread_mutex_lock(&flagman_lock->completion_lock);
+    with_pthread_mutex(&flagman_lock->count_lock) {
+        if (flagman_lock->count == 0) {
+            pthread_mutex_lock(&flagman_lock->completion_lock);
+        }
+        flagman_lock->count += 1;
     }
-    flagman_lock->count += 1;
-    pthread_mutex_unlock(&flagman_lock->count_lock);
 }
 
 void flagman_release(flagman *flagman_lock) {
-    pthread_mutex_lock(&flagman_lock->count_lock);
-    if (flagman_lock->count == 0) {
-        goto unlock_count;
+    with_pthread_mutex(&flagman_lock->count_lock) {
+        if (flagman_lock->count == 0) {
+            break;
+        }
+        flagman_lock->count -= 1;
+        if (flagman_lock->count == 0) {
+            pthread_mutex_unlock(&flagman_lock->completion_lock);
+        }
     }
-    flagman_lock->count -= 1;
-    if (flagman_lock->count == 0) {
-        pthread_mutex_unlock(&flagman_lock->completion_lock);
-    }
-unlock_count:
-    pthread_mutex_unlock(&flagman_lock->count_lock);
 }
 
 void flagman_wait(flagman *flagman_lock) {
