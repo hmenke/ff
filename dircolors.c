@@ -108,7 +108,6 @@ const char *dircolor(const char *realpath) {
         break;
     }
 
-
     // Extract the extension
     const char *basename = strrchr(realpath, '/');
     if (basename == NULL) {

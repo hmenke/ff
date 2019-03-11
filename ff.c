@@ -187,25 +187,27 @@ void print_usage(const char *msg) {
         fputs(msg, stderr);
         fputs("\n", stderr);
     }
-    fputs("Usage: ff [options] [pattern] [directory]\n"
-          "Simplified version of GNU find using the PCRE library for regex.\n"
-          "\n"
-          "Valid options:\n"
-          "  -d, --depth <n>      Maximum directory traversal depth\n"
-          "  -t, --type <x>       Restrict output to type with <x> one of\n"
-          "                           b   block device.\n"
-          "                           c   character device.\n"
-          "                           d   directory.\n"
-          "                           n   named pipe (FIFO).\n"
-          "                           l   symbolic link.\n"
-          "                           f   regular file.\n"
-          "                           s   UNIX domain socket.\n"
-          "  -n, --nthreads <n>   Use <n> threads for parallel directory traversal\n"
-          "  -g, --glob           Match glob instead of regex\n"
-          "  -H, --hidden         Traverse hidden directories and files as well\n"
-          "  -I, --icase          Ignore case when applying the regex\n"
-          "  -h, --help           Display this help and quit\n",
-          stderr);
+    fputs(
+        "Usage: ff [options] [pattern] [directory]\n"
+        "Simplified version of GNU find using the PCRE library for regex.\n"
+        "\n"
+        "Valid options:\n"
+        "  -d, --depth <n>      Maximum directory traversal depth\n"
+        "  -t, --type <x>       Restrict output to type with <x> one of\n"
+        "                           b   block device.\n"
+        "                           c   character device.\n"
+        "                           d   directory.\n"
+        "                           n   named pipe (FIFO).\n"
+        "                           l   symbolic link.\n"
+        "                           f   regular file.\n"
+        "                           s   UNIX domain socket.\n"
+        "  -n, --nthreads <n>   Use <n> threads for parallel directory "
+        "traversal\n"
+        "  -g, --glob           Match glob instead of regex\n"
+        "  -H, --hidden         Traverse hidden directories and files as well\n"
+        "  -I, --icase          Ignore case when applying the regex\n"
+        "  -h, --help           Display this help and quit\n",
+        stderr);
 }
 
 int main(int argc, char *argv[]) {

@@ -2,8 +2,8 @@
 #define _GNU_SOURCE
 #endif
 
-#include "macros.h"
 #include "message.h"
+#include "macros.h"
 
 // C standard library
 #include <stdio.h>
