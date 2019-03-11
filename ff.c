@@ -233,15 +233,15 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"depth", required_argument, NULL, 'd'},
         {"type", required_argument, NULL, 't'},
+        {"nthreads", required_argument, NULL, 'N'},
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
         {"icase", no_argument, NULL, 'I'},
-        {"nthreads", required_argument, NULL, 'N'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:gHNIh", long_options,
+    while ((c = getopt_long(argc, argv, "d:t:N:gHIh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         case 'd':
@@ -291,6 +291,7 @@ int main(int argc, char *argv[]) {
             opt.icase = true;
             break;
         case 'N':
+            assert(optarg);
             nthreads = (long)strtoul(optarg, NULL, 0);
             if (nthreads == 0 || errno == ERANGE) {
                 print_usage("Invalid argument for --depth");

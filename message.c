@@ -10,7 +10,6 @@
 #include <string.h>
 
 // POSIX C library
-#include <mqueue.h>
 #include <pthread.h>
 #include <semaphore.h>
 
@@ -76,14 +75,16 @@ void queue_put(queue *q, message *msg, size_t priority) {
     new->next = NULL;
 
     pthread_mutex_lock(&q->lock);
-    int length;
-    sem_getvalue(&q->length, &length);
-    if (length == 0) {
+
+    // If the list was empty, create the first node
+    if (q->head == NULL && q->tail == NULL) {
         q->head = new;
         q->tail = new;
         goto unlock;
     }
 
+    // Walk the list until an item with lower priority is found or the list has
+    // ended
     node *p = q->head;
     while (p != q->tail && p->priority > priority) {
         if (p->next == NULL) {
@@ -92,6 +93,7 @@ void queue_put(queue *q, message *msg, size_t priority) {
         p = p->next;
     }
 
+    // Insert new item
     node *next = p->next;
     p->next = new;
     new->next = next;
@@ -102,12 +104,17 @@ unlock:
 }
 
 message *queue_get(queue *q) {
+    // Wait until the queue is non-empty
     sem_wait(&q->length);
+
     pthread_mutex_lock(&q->lock);
+
+    // Retrieve the message and free the node
     message *msg = q->head->msg;
     node *oldhead = q->head;
     q->head = q->head->next;
     free(oldhead);
+
     pthread_mutex_unlock(&q->lock);
     return msg;
 }
