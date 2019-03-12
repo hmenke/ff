@@ -5,7 +5,7 @@
          _continue = 0, pthread_mutex_unlock(mutex))
 
 #define foreach_opendir(entry, path)                                           \
-    for (struct dirent *_d = (void *)opendir(path), *entry = NULL;             \
+    for (struct dirent *_d = (struct dirent *)opendir(path), *entry = NULL;    \
          _d != NULL &&                                                         \
          ((entry = readdir((DIR *)_d)) != NULL || closedir((DIR *)_d));)
 

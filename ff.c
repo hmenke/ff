@@ -300,20 +300,28 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Scan pattern and directory
     const char *pattern = "";
     opt.directory = ".";
     switch (argc - optind) {
     case 2:
         opt.directory = argv[optind + 1];
-        goto fallthrough;
-    case 1:
-    fallthrough:
+        goto pattern;
+    case 1: {
+        DIR *d = opendir(argv[optind]);
+        if (d != NULL) {
+            opt.directory = argv[optind];puts("It's a directory!");
+            closedir(d);
+            goto none;
+        }
+    pattern:
         pattern = argv[optind];
         if (strlen(pattern) > 0 && opt.mode == NONE) {
             opt.mode = REGEX;
         }
-        break;
+    } break;
     case 0:
+    none:
         opt.mode = NONE;
         break;
     default:
@@ -321,6 +329,16 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Check if the requested directory even exists
+    DIR *d = opendir(opt.directory);
+    if (d == NULL) {
+        perror(opt.directory);
+        print_usage(NULL);
+        return 1;
+    }
+    closedir(d);
+
+    // Set up the pattern matcher
     switch (opt.mode) {
     case REGEX: {
         int flags = opt.icase ? PCRE_CASELESS : 0;
