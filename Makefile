@@ -1,5 +1,5 @@
 CFLAGS += -Wall -Wextra -Wpedantic
-LDLIBS += -lpcre -lpthread -lrt
+LDLIBS += -lpcre -lpthread
 
 all: CFLAGS += -std=gnu99 -O3 -flto
 all: ff
