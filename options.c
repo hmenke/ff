@@ -138,12 +138,13 @@ int parse_options(int argc, char *argv[], options *opt) {
             closedir(d);
             goto none;
         }
+    }
     pattern:
         pattern = argv[optind];
         if (strlen(pattern) > 0 && opt->mode == NONE) {
             opt->mode = REGEX;
         }
-    } break;
+        break;
     case 0:
     none:
         opt->mode = NONE;

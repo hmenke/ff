@@ -4,7 +4,7 @@ LDLIBS += -lpcre -lpthread
 all: CFLAGS += -std=gnu99 -O3 -flto
 all: ff
 
-debug: CFLAGS += -std=gnu99 -g
+debug: CFLAGS += -std=gnu99 -pg -g -fstack-protector -D_FORTIFY_SOURCE=2
 debug: ff
 
 cpp: CC = c++ -x c++
