@@ -10,4 +10,8 @@ debug: ff
 cpp: CC = c++ -x c++
 cpp: ff
 
-ff: ff.c dircolors.c message.c flagman.c
+ff: dircolors.c \
+    ff.c        \
+    flagman.c   \
+    message.c   \
+    options.c
