@@ -1,5 +1,7 @@
 # ff
 
+[![AppVeyor Build Status][appveyor-svg]][appveyor-link]
+
 Simplified version of *find* using the PCRE and libgit2 libraries.
 
 *ff* has been inspired by [*fd*](https://github.com/sharkdp/fd).
@@ -28,3 +30,6 @@ folder generic and can be reused easily.
 
 - Command execution
 - Exclude files and directories
+
+[appveyor-svg]: https://ci.appveyor.com/api/projects/status/03dntgenr4yvofrv/branch/master?svg=true
+[appveyor-link]: https://ci.appveyor.com/project/hmenke/ff/branch/master

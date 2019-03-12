@@ -1,0 +1,13 @@
+os:
+- Ubuntu
+
+install:
+- sh: sudo apt-get -q update
+- sh: sudo apt-get -qy --no-install-recommends install libpcre3-dev libgit2-dev
+
+build_script:
+- sh: make
+
+artifacts:
+  - path: ff
+    name: binary
