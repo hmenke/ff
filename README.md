@@ -17,6 +17,7 @@ your POSIX system.
 - Regular expressions and shell glob patterns
 - Parallel directory traversal
 - No heavy build system
+- Respect `.gitignore`
 
 ## Future features (hopefully)
 

@@ -112,6 +112,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             if (git_repository_open(&currentrepo, current) != 0) {
                 // If it is not a git repo, duplicate the current handle
                 if (repo) {
+                    // TODO: This is extremely slow. We should
+                    // ref-count repo instead of copy and free each
+                    // time.
                     git_repository_open(&currentrepo,
                                         git_repository_workdir(repo));
                 }
