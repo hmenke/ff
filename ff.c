@@ -63,7 +63,7 @@ typedef struct {
     shared_ptr repo_ref;
 } message_body;
 
-message_body *message_body_new(int depth, size_t len, char *str,
+message_body *message_body_new(int depth, size_t len, const char *str,
                                shared_ptr repo_ref) {
     message_body *msg = (message_body *)malloc(sizeof(message_body));
     msg->depth = depth;
@@ -210,7 +210,7 @@ static void *worker(void *arg) {
     // git_libgit2_init();
 
     foreach_queue_get(msg, opt->q) {
-        message_body *b = message_data(msg);
+        message_body *b = (message_body *)message_data(msg);
         int depth = b->depth;
         size_t l_parent = b->len;
         const char *parent = b->str;
