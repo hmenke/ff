@@ -18,31 +18,21 @@
 // Message container
 
 struct _message {
-    int i;
-    size_t len;
-    char *str;
+    void (*freefn)(void *);
     void *data;
 };
 
-message *message_new(int i, size_t len, const char *str, void *data) {
+message *message_new(void *data, void (*freefn)(void *)) {
     message *msg = (message *)malloc(sizeof(message));
-    msg->i = i;
-    msg->len = len;
-    msg->str = str ? strdup(str) : NULL;
+    msg->freefn = freefn;
     msg->data = data;
     return msg;
 }
 
-int message_depth(message *msg) { return msg->i; }
-
-size_t message_len(message *msg) { return msg->len; }
-
-char *message_path(message *msg) { return msg->str; }
-
-void *message_repo(message *msg) { return msg->data; }
+void *message_data(message *msg) { return msg->data; }
 
 void message_free(message *msg) {
-    free(msg->str);
+    msg->freefn(msg->data);
     free(msg);
     msg = NULL;
 }

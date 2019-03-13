@@ -27,6 +27,30 @@
 // Git
 #include <git2.h>
 
+typedef struct {
+    int depth;
+    size_t len;
+    char *str;
+    git_repository *repo;
+} message_body;
+
+message_body *message_body_new(int depth, size_t len, char *str,
+                               git_repository *repo) {
+    message_body *msg = (message_body *)malloc(sizeof(message_body));
+    msg->depth = depth;
+    msg->len = len;
+    msg->str = str ? strdup(str) : NULL;
+    msg->repo = repo;
+    return msg;
+}
+
+void message_body_free(void *ptr) {
+    message_body *msg = (message_body *)ptr;
+    free(msg->str);
+    git_repository_free(msg->repo);
+    free(msg);
+}
+
 void process_match(const char *realpath, const char *dirname,
                    const char *basename, const options *const opt) {
     if (opt->colorize) {
@@ -119,8 +143,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                                         git_repository_workdir(repo));
                 }
             }
-            message *m =
-                message_new(depth + 1, l_current, current, currentrepo);
+            message *m = message_new(
+                message_body_new(depth + 1, l_current, current, currentrepo),
+                message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
 
@@ -156,23 +181,22 @@ static void *worker(void *arg) {
         break;
     }
 
-    git_libgit2_init();
+    // git_libgit2_init();
 
     foreach_queue_get(msg, opt->q) {
-        int depth = message_depth(msg);
-        size_t l_parent = message_len(msg);
-        const char *parent = message_path(msg);
-        git_repository *repo = message_repo(msg);
+        message_body *b = message_data(msg);
+        int depth = b->depth;
+        size_t l_parent = b->len;
+        const char *parent = b->str;
+        git_repository *repo = b->repo;
 
         // Walk the directory tree
         walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
              glob_flags, repo);
         flagman_release(opt->flagman_lock);
-
-        git_repository_free(repo);
     }
 
-    git_libgit2_shutdown();
+    // git_libgit2_shutdown();
 
     // Cleanup
     switch (opt->mode) {
@@ -228,14 +252,17 @@ int main(int argc, char *argv[]) {
     if (opt.optind == argc) {
         git_repository *repo = NULL;
         git_repository_open_ext(&repo, ".", 0, NULL);
-        message *msg = message_new(0, 1, ".", repo);
+        message *msg =
+            message_new(message_body_new(0, 1, ".", repo), message_body_free);
         queue_put_head(opt.q, msg);
     }
 
     for (int arg = opt.optind; arg < argc; ++arg) {
         git_repository *repo = NULL;
         git_repository_open_ext(&repo, argv[arg], 0, NULL);
-        message *msg = message_new(0, strlen(argv[arg]), argv[arg], repo);
+        message *msg =
+            message_new(message_body_new(0, strlen(argv[arg]), argv[arg], repo),
+                        message_body_free);
         queue_put_head(opt.q, msg);
     }
 
