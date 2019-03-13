@@ -169,9 +169,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                 // If it is not a git repo, duplicate the current handle
                 currentrepo_ref = make_shared_copy(repo_ref);
             }
-            message *m = message_new(
-                message_body_new(depth + 1, l_current, current, currentrepo_ref),
-                message_body_free);
+            message *m = message_new(message_body_new(depth + 1, l_current,
+                                                      current, currentrepo_ref),
+                                     message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
 
@@ -279,8 +279,8 @@ int main(int argc, char *argv[]) {
         git_repository *repo = NULL;
         git_repository_open_ext(&repo, ".", 0, NULL);
         shared_ptr repo_ref = make_shared(repo);
-        message *msg =
-            message_new(message_body_new(0, 1, ".", repo_ref), message_body_free);
+        message *msg = message_new(message_body_new(0, 1, ".", repo_ref),
+                                   message_body_free);
         queue_put_head(opt.q, msg);
     }
 
@@ -288,9 +288,9 @@ int main(int argc, char *argv[]) {
         git_repository *repo = NULL;
         git_repository_open_ext(&repo, argv[arg], 0, NULL);
         shared_ptr repo_ref = make_shared(repo);
-        message *msg =
-            message_new(message_body_new(0, strlen(argv[arg]), argv[arg], repo_ref),
-                        message_body_free);
+        message *msg = message_new(
+            message_body_new(0, strlen(argv[arg]), argv[arg], repo_ref),
+            message_body_free);
         queue_put_head(opt.q, msg);
     }
 
