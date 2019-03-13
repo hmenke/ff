@@ -29,7 +29,7 @@
 
 typedef struct _shared_ptr shared_ptr;
 struct _shared_ptr {
-    git_repository *repo;
+    git_repository *ptr;
     int *refcnt;
 };
 
@@ -38,7 +38,7 @@ shared_ptr make_shared(git_repository *repo) {
     *refcnt = 1;
 
     shared_ptr s;
-    s.repo = repo;
+    s.ptr = repo;
     s.refcnt = refcnt;
 
     return s;
@@ -46,7 +46,7 @@ shared_ptr make_shared(git_repository *repo) {
 
 void free_shared(shared_ptr s) {
     if (__sync_sub_and_fetch(s.refcnt, 1) == 0) {
-        git_repository_free(s.repo);
+        git_repository_free(s.ptr);
         free(s.refcnt);
     }
 }
@@ -60,23 +60,23 @@ typedef struct {
     int depth;
     size_t len;
     char *str;
-    shared_ptr repo_ref;
+    shared_ptr repo;
 } message_body;
 
 message_body *message_body_new(int depth, size_t len, const char *str,
-                               shared_ptr repo_ref) {
+                               shared_ptr repo) {
     message_body *msg = (message_body *)malloc(sizeof(message_body));
     msg->depth = depth;
     msg->len = len;
     msg->str = str ? strdup(str) : NULL;
-    msg->repo_ref = repo_ref;
+    msg->repo = repo;
     return msg;
 }
 
 void message_body_free(void *ptr) {
     message_body *msg = (message_body *)ptr;
     free(msg->str);
-    free_shared(msg->repo_ref);
+    free_shared(msg->repo);
     free(msg);
 }
 
@@ -97,7 +97,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
           // GLOB
           const char *glob_pattern, int glob_flags,
           // GIT
-          shared_ptr repo_ref) {
+          shared_ptr repo) {
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
@@ -119,9 +119,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         // Check .gitignore
-        if (!opt->no_ignore && repo_ref.repo != NULL) {
+        if (!opt->no_ignore && repo.ptr != NULL) {
             int ignored = 0;
-            git_ignore_path_is_ignored(&ignored, repo_ref.repo, entry->d_name);
+            git_ignore_path_is_ignored(&ignored, repo.ptr, entry->d_name);
             if (ignored == 1) {
                 continue;
             }
@@ -161,17 +161,17 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
         if (entry->d_type == DT_DIR) {
             flagman_acquire(opt->flagman_lock);
-            shared_ptr currentrepo_ref;
-            git_repository *currentrepo = NULL;
-            if (git_repository_open(&currentrepo, current) == 0) {
-                currentrepo_ref = make_shared(currentrepo);
-            } else {
-                // If it is not a git repo, duplicate the current handle
-                currentrepo_ref = make_shared_copy(repo_ref);
+            shared_ptr currentrepo = make_shared(NULL);
+            if (!opt->no_ignore) {
+                if (git_repository_open(&currentrepo.ptr, current) != 0) {
+                    free_shared(currentrepo);
+                    // If it is not a git repo, duplicate the current handle
+                    currentrepo = make_shared_copy(repo);
+                }
             }
-            message *m = message_new(message_body_new(depth + 1, l_current,
-                                                      current, currentrepo_ref),
-                                     message_body_free);
+            message *m = message_new(
+                message_body_new(depth + 1, l_current, current, currentrepo),
+                message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
 
@@ -214,11 +214,11 @@ static void *worker(void *arg) {
         int depth = b->depth;
         size_t l_parent = b->len;
         const char *parent = b->str;
-        shared_ptr repo_ref = b->repo_ref;
+        shared_ptr repo = b->repo;
 
         // Walk the directory tree
         walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
-             glob_flags, repo_ref);
+             glob_flags, repo);
         flagman_release(opt->flagman_lock);
     }
 
@@ -276,21 +276,23 @@ int main(int argc, char *argv[]) {
 
     // Send the inital job
     if (opt.optind == argc) {
-        git_repository *repo = NULL;
-        git_repository_open_ext(&repo, ".", 0, NULL);
-        shared_ptr repo_ref = make_shared(repo);
-        message *msg = message_new(message_body_new(0, 1, ".", repo_ref),
-                                   message_body_free);
+        shared_ptr repo = make_shared(NULL);
+        if (!opt.no_ignore) {
+            git_repository_open_ext(&repo.ptr, ".", 0, NULL);
+        }
+        message *msg =
+            message_new(message_body_new(0, 1, ".", repo), message_body_free);
         queue_put_head(opt.q, msg);
     }
 
     for (int arg = opt.optind; arg < argc; ++arg) {
-        git_repository *repo = NULL;
-        git_repository_open_ext(&repo, argv[arg], 0, NULL);
-        shared_ptr repo_ref = make_shared(repo);
-        message *msg = message_new(
-            message_body_new(0, strlen(argv[arg]), argv[arg], repo_ref),
-            message_body_free);
+        shared_ptr repo = make_shared(NULL);
+        if (!opt.no_ignore) {
+            git_repository_open_ext(&repo.ptr, argv[arg], 0, NULL);
+        }
+        message *msg =
+            message_new(message_body_new(0, strlen(argv[arg]), argv[arg], repo),
+                        message_body_free);
         queue_put_head(opt.q, msg);
     }
 
