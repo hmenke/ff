@@ -29,7 +29,14 @@ typedef struct {
     long max_depth;
     bool colorize;
     bool icase;
+    bool no_ignore;
     long nthreads;
 } options;
+
+enum {
+    OPTIONS_SUCCESS = 0,
+    OPTIONS_FAILURE = 1,
+    OPTIONS_HELP = 2,
+};
 
 int parse_options(int argc, char *argv[], options *opt);

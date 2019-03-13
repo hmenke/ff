@@ -39,7 +39,8 @@ void print_usage(const char *msg) {
         "traversal\n"
         "  -g, --glob           Match glob instead of regex\n"
         "  -H, --hidden         Traverse hidden directories and files as well\n"
-        "  -I, --icase          Ignore case when applying the regex\n"
+        "  -I, --no-ignore      Disregard .gitignore\n"
+        "  -i, --ignore-case    Ignore case when applying the regex\n"
         "  -h, --help           Display this help and quit\n",
         stderr);
 }
@@ -52,12 +53,13 @@ int parse_options(int argc, char *argv[], options *opt) {
         {"nthreads", required_argument, NULL, 'N'},
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
-        {"icase", no_argument, NULL, 'I'},
+        {"ignore-case", no_argument, NULL, 'i'},
+        {"no-ignore", no_argument, NULL, 'I'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:N:gHIh", long_options,
+    while ((c = getopt_long(argc, argv, "d:t:N:gHiIh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         case 'd':
@@ -65,7 +67,7 @@ int parse_options(int argc, char *argv[], options *opt) {
             opt->max_depth = (long)strtoul(optarg, NULL, 0);
             if (opt->max_depth == 0 || errno == ERANGE) {
                 print_usage("Invalid argument for --depth");
-                return 1;
+                return OPTIONS_FAILURE;
             }
             break;
         case 't':
@@ -94,7 +96,7 @@ int parse_options(int argc, char *argv[], options *opt) {
                 break;
             default:
                 print_usage("Invalid argument for --type");
-                return 1;
+                return OPTIONS_FAILURE;
             }
             break;
         case 'g': // glob
@@ -104,6 +106,9 @@ int parse_options(int argc, char *argv[], options *opt) {
             opt->skip_hidden = false;
             break;
         case 'I':
+            opt->no_ignore = true;
+            break;
+        case 'i':
             opt->icase = true;
             break;
         case 'N':
@@ -111,15 +116,15 @@ int parse_options(int argc, char *argv[], options *opt) {
             opt->nthreads = (long)strtoul(optarg, NULL, 0);
             if (opt->nthreads == 0 || errno == ERANGE) {
                 print_usage("Invalid argument for --nthreads");
-                return 1;
+                return OPTIONS_FAILURE;
             }
             break;
         case 'h':
             print_usage(NULL);
-            return 0;
+            return OPTIONS_HELP;
         default:
             print_usage(NULL);
-            return 1;
+            return OPTIONS_FAILURE;
         }
     }
 
@@ -143,7 +148,7 @@ int parse_options(int argc, char *argv[], options *opt) {
         if (d == NULL) {
             perror(argv[arg]);
             print_usage(NULL);
-            return 1;
+            return OPTIONS_FAILURE;
         }
         closedir(d);
 
@@ -166,7 +171,7 @@ int parse_options(int argc, char *argv[], options *opt) {
         opt->match.re = pcre_compile(pattern, flags, &error, &erroffset, NULL);
         if (opt->match.re == NULL) {
             fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
-            return 1;
+            return OPTIONS_FAILURE;
         }
     } break;
     case GLOB:
@@ -176,5 +181,5 @@ int parse_options(int argc, char *argv[], options *opt) {
         break;
     }
 
-    return 0;
+    return OPTIONS_SUCCESS;
 }

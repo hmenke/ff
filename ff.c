@@ -66,7 +66,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         // Check .gitignore
-        if (repo != NULL) {
+        if (!opt->no_ignore && repo != NULL) {
             int ignored = 0;
             git_ignore_path_is_ignored(&ignored, repo, entry->d_name);
             if (ignored == 1) {
@@ -197,10 +197,16 @@ int main(int argc, char *argv[]) {
     opt.max_depth = -1;
     opt.colorize = isatty(fileno(stdout));
     opt.icase = false;
+    opt.no_ignore = false;
     opt.nthreads = get_nprocs();
 
-    if (parse_options(argc, argv, &opt) != 0) {
+    switch (parse_options(argc, argv, &opt)) {
+    case OPTIONS_SUCCESS:
+        break;
+    case OPTIONS_FAILURE: // parsing error
         return 1;
+    case OPTIONS_HELP: // --help
+        return 0;
     }
 
     // Open a new message queue
