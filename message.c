@@ -6,6 +6,7 @@
 #include "macros.h"
 
 // C standard library
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,17 +15,21 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+// Message container
+
 struct _message {
     int i;
     size_t len;
     char *str;
+    void *data;
 };
 
-message *message_new(int i, size_t len, const char *str) {
+message *message_new(int i, size_t len, const char *str, void *data) {
     message *msg = (message *)malloc(sizeof(message));
     msg->i = i;
     msg->len = len;
     msg->str = str ? strdup(str) : NULL;
+    msg->data = data;
     return msg;
 }
 
@@ -34,11 +39,15 @@ size_t message_len(message *msg) { return msg->len; }
 
 char *message_path(message *msg) { return msg->str; }
 
+void *message_repo(message *msg) { return msg->data; }
+
 void message_free(message *msg) {
     free(msg->str);
     free(msg);
     msg = NULL;
 }
+
+// Message queue
 
 typedef struct _node node;
 struct _node {

@@ -22,7 +22,7 @@ void print_usage(const char *msg) {
         fputs("\n", stderr);
     }
     fputs(
-        "Usage: ff [options] [pattern] [directory]\n"
+        "Usage: ff [options] [pattern] [directories...]\n"
         "Simplified version of GNU find using the PCRE library for regex.\n"
         "\n"
         "Valid options:\n"
@@ -125,43 +125,35 @@ int parse_options(int argc, char *argv[], options *opt) {
 
     // Scan pattern and directory
     const char *pattern = "";
-    opt->directory = ".";
     switch (argc - optind) {
-    case 2:
-        opt->directory = argv[optind + 1];
-        goto pattern;
-    case 1: {
-        DIR *d = opendir(argv[optind]);
-        if (d != NULL) {
-            opt->directory = argv[optind];
-            puts("It's a directory!");
-            closedir(d);
-            goto none;
-        }
-    }
-    pattern:
-        pattern = argv[optind];
+    case 0:
+        opt->mode = NONE;
+        break;
+    default:
+        pattern = argv[optind++];
         if (strlen(pattern) > 0 && opt->mode == NONE) {
             opt->mode = REGEX;
         }
         break;
-    case 0:
-    none:
-        opt->mode = NONE;
-        break;
-    default:
-        print_usage("You need to provide a pattern");
-        return 1;
     }
 
-    // Check if the requested directory even exists
-    DIR *d = opendir(opt->directory);
-    if (d == NULL) {
-        perror(opt->directory);
-        print_usage(NULL);
-        return 1;
+    for (int arg = optind; arg < argc; ++arg) {
+        // Check if the requested directory even exists
+        DIR *d = opendir(argv[arg]);
+        if (d == NULL) {
+            perror(argv[arg]);
+            print_usage(NULL);
+            return 1;
+        }
+        closedir(d);
+
+        // Truncate trailing slashes
+        size_t len = strlen(argv[arg]);
+        while (argv[arg][len - 1] == '/') {
+            argv[arg][--len] = '\0';
+        }
     }
-    closedir(d);
+    opt->optind = optind;
 
     // Set up the pattern matcher
     switch (opt->mode) {

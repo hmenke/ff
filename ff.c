@@ -24,6 +24,9 @@
 // PCRE
 #include <pcre.h>
 
+// Git
+#include <git2.h>
+
 void process_match(const char *realpath, const char *dirname,
                    const char *basename, const options *const opt) {
     if (opt->colorize) {
@@ -39,7 +42,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
           // PCRE
           pcre *re, pcre_extra *extra, pcre_jit_stack *jit_stack,
           // GLOB
-          const char *glob_pattern, int glob_flags) {
+          const char *glob_pattern, int glob_flags,
+          // GIT
+          git_repository *repo) {
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
@@ -56,6 +61,15 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         // Skip hidden
         if (opt->skip_hidden) {
             if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
+                continue;
+            }
+        }
+
+        // Check .gitignore
+        if (repo != NULL) {
+            int ignored = 0;
+            git_ignore_path_is_ignored(&ignored, repo, entry->d_name);
+            if (ignored == 1) {
                 continue;
             }
         }
@@ -94,7 +108,16 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
         if (entry->d_type == DT_DIR) {
             flagman_acquire(opt->flagman_lock);
-            message *m = message_new(depth + 1, l_current, current);
+            git_repository *currentrepo = NULL;
+            if (git_repository_open(&currentrepo, current) != 0) {
+                // If it is not a git repo, duplicate the current handle
+                if (repo) {
+                    git_repository_open(&currentrepo,
+                                        git_repository_workdir(repo));
+                }
+            }
+            message *m =
+                message_new(depth + 1, l_current, current, currentrepo);
             queue_put(opt->q, m, depth + 1);
         }
 
@@ -130,16 +153,23 @@ static void *worker(void *arg) {
         break;
     }
 
+    git_libgit2_init();
+
     foreach_queue_get(msg, opt->q) {
         int depth = message_depth(msg);
         size_t l_parent = message_len(msg);
         const char *parent = message_path(msg);
+        git_repository *repo = message_repo(msg);
 
         // Walk the directory tree
         walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
-             glob_flags);
+             glob_flags, repo);
         flagman_release(opt->flagman_lock);
+
+        git_repository_free(repo);
     }
+
+    git_libgit2_shutdown();
 
     // Cleanup
     switch (opt->mode) {
@@ -177,6 +207,8 @@ int main(int argc, char *argv[]) {
     opt.flagman_lock = flagman_new();
     flagman_acquire(opt.flagman_lock);
 
+    git_libgit2_init();
+
     // Start threads
     pthread_t *thread = (pthread_t *)malloc(opt.nthreads * sizeof(pthread_t));
     for (int i = 0; i < opt.nthreads; ++i) {
@@ -184,8 +216,19 @@ int main(int argc, char *argv[]) {
     }
 
     // Send the inital job
-    message *msg = message_new(0, strlen(opt.directory), opt.directory);
-    queue_put_head(opt.q, msg);
+    if (opt.optind == argc) {
+        git_repository *repo = NULL;
+        git_repository_open(&repo, ".");
+        message *msg = message_new(0, 1, ".", repo);
+        queue_put_head(opt.q, msg);
+    }
+
+    for (int arg = opt.optind; arg < argc; ++arg) {
+        git_repository *repo = NULL;
+        git_repository_open(&repo, argv[arg]);
+        message *msg = message_new(0, strlen(argv[arg]), argv[arg], repo);
+        queue_put_head(opt.q, msg);
+    }
 
     // Send termination signal
     flagman_wait(opt.flagman_lock);
@@ -202,6 +245,7 @@ int main(int argc, char *argv[]) {
     }
 
     free(thread);
+    git_libgit2_shutdown();
     flagman_free(opt.flagman_lock);
     queue_free(opt.q);
 

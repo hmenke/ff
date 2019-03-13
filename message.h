@@ -9,10 +9,11 @@
 typedef struct _message message;
 typedef struct _queue queue;
 
-message *message_new(int depth, size_t len, const char *path);
+message *message_new(int depth, size_t len, const char *path, void *data);
 int message_depth(message *msg);
 size_t message_len(message *msg);
 char *message_path(message *msg);
+void *message_repo(message *msg);
 void message_free(message *msg);
 
 queue *queue_new();

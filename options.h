@@ -23,7 +23,7 @@ typedef struct {
     match_mode mode;
 
     // program parameters
-    const char *directory;
+    int optind;
     unsigned char only_type;
     bool skip_hidden;
     long max_depth;
