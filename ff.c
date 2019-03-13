@@ -221,14 +221,14 @@ int main(int argc, char *argv[]) {
     // Send the inital job
     if (opt.optind == argc) {
         git_repository *repo = NULL;
-        git_repository_open(&repo, ".");
+        git_repository_open_ext(&repo, ".", 0, NULL);
         message *msg = message_new(0, 1, ".", repo);
         queue_put_head(opt.q, msg);
     }
 
     for (int arg = opt.optind; arg < argc; ++arg) {
         git_repository *repo = NULL;
-        git_repository_open(&repo, argv[arg]);
+        git_repository_open_ext(&repo, argv[arg], 0, NULL);
         message *msg = message_new(0, strlen(argv[arg]), argv[arg], repo);
         queue_put_head(opt.q, msg);
     }
