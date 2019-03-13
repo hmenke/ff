@@ -80,13 +80,13 @@ void message_body_free(void *ptr) {
     free(msg);
 }
 
-void process_match(const char *realpath, const char *dirname,
-                   const char *basename, const options *const opt) {
+void process_match(const char *real_path, const char *dir_name,
+                   const char *base_name, const options *const opt) {
     if (opt->colorize) {
         printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "\n",
-               dirname, dircolor(realpath), basename);
+               dir_name, dircolor(real_path), base_name);
     } else {
-        puts(realpath);
+        puts(real_path);
     }
 }
 

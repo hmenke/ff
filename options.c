@@ -35,7 +35,7 @@ void print_usage(const char *msg) {
         "                           l   symbolic link.\n"
         "                           f   regular file.\n"
         "                           s   UNIX domain socket.\n"
-        "  -n, --nthreads <n>   Use <n> threads for parallel directory "
+        "  -j, --threads <n>    Use <n> threads for parallel directory "
         "traversal\n"
         "  -g, --glob           Match glob instead of regex\n"
         "  -H, --hidden         Traverse hidden directories and files as well\n"
@@ -50,7 +50,7 @@ int parse_options(int argc, char *argv[], options *opt) {
     static struct option long_options[] = {
         {"depth", required_argument, NULL, 'd'},
         {"type", required_argument, NULL, 't'},
-        {"nthreads", required_argument, NULL, 'N'},
+        {"threads", required_argument, NULL, 'j'},
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
         {"ignore-case", no_argument, NULL, 'i'},
@@ -59,7 +59,7 @@ int parse_options(int argc, char *argv[], options *opt) {
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:N:gHiIh", long_options,
+    while ((c = getopt_long(argc, argv, "d:t:j:gHiIh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         case 'd':
@@ -111,7 +111,7 @@ int parse_options(int argc, char *argv[], options *opt) {
         case 'i':
             opt->icase = true;
             break;
-        case 'N':
+        case 'j':
             assert(optarg);
             opt->nthreads = (long)strtoul(optarg, NULL, 0);
             if (opt->nthreads == 0 || errno == ERANGE) {
@@ -154,7 +154,7 @@ int parse_options(int argc, char *argv[], options *opt) {
 
         // Truncate trailing slashes
         size_t len = strlen(argv[arg]);
-        while (argv[arg][len - 1] == '/') {
+        while (len > 1 && argv[arg][len - 1] == '/') {
             argv[arg][--len] = '\0';
         }
     }
