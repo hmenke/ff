@@ -133,6 +133,12 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         filter = filter_hidden;
     }
 
+    // For deterministic order we have to lock stdout for each
+    // directory
+    if (opt->deterministic) {
+        flockfile(stdout);
+    }
+
     // Traverse the directory
     foreach_scandir(entry, parent, filter) {
         const char *d_name = entry->d_name;
@@ -205,6 +211,10 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         free(current);
+    }
+
+    if (opt->deterministic) {
+        funlockfile(stdout);
     }
 }
 
@@ -284,6 +294,7 @@ int main(int argc, char *argv[]) {
     opt.icase = false;
     opt.no_ignore = false;
     opt.nthreads = get_nprocs();
+    opt.deterministic = false;
 
     // Parse the command line
     switch (parse_options(argc, argv, &opt)) {

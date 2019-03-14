@@ -22,10 +22,11 @@ void print_usage(const char *msg) {
         fputs("\n", stderr);
     }
     fputs(
-        "Usage: ff [options] [pattern] [directories...]\n"
+        // clang-format off
+        "Usage: ff [FLAGS/OPTIONS] [<pattern>] [<path>...]\n"
         "Simplified version of GNU find using the PCRE library for regex.\n"
         "\n"
-        "Valid options:\n"
+        "OPTIONS:\n"
         "  -d, --depth <n>      Maximum directory traversal depth\n"
         "  -t, --type <x>       Restrict output to type with <x> one of\n"
         "                           b   block device.\n"
@@ -35,13 +36,16 @@ void print_usage(const char *msg) {
         "                           l   symbolic link.\n"
         "                           f   regular file.\n"
         "                           s   UNIX domain socket.\n"
-        "  -j, --threads <n>    Use <n> threads for parallel directory "
-        "traversal\n"
+        "  -j, --threads <n>    Use <n> threads for parallel directory traversal\n"
+        "\n"
+        "FLAGS:\n"
         "  -g, --glob           Match glob instead of regex\n"
         "  -H, --hidden         Traverse hidden directories and files as well\n"
         "  -I, --no-ignore      Disregard .gitignore\n"
         "  -i, --ignore-case    Ignore case when applying the regex\n"
+        "  -D, --deterministic  Deterministic sorting within directories (SLOW!)\n"
         "  -h, --help           Display this help and quit\n",
+        // clang-format on
         stderr);
 }
 
@@ -55,11 +59,12 @@ int parse_options(int argc, char *argv[], options *opt) {
         {"hidden", no_argument, NULL, 'H'},
         {"ignore-case", no_argument, NULL, 'i'},
         {"no-ignore", no_argument, NULL, 'I'},
+        {"deterministic", no_argument, NULL, 'D'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:j:gHiIh", long_options,
+    while ((c = getopt_long(argc, argv, "d:t:j:gHiIDh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         case 'd':
@@ -118,6 +123,9 @@ int parse_options(int argc, char *argv[], options *opt) {
                 print_usage("Invalid argument for --nthreads");
                 return OPTIONS_FAILURE;
             }
+            break;
+        case 'D':
+            opt->deterministic = true;
             break;
         case 'h':
             print_usage(NULL);
