@@ -45,9 +45,11 @@ shared_ptr make_shared(git_repository *repo) {
 }
 
 void free_shared(shared_ptr s) {
+    assert(s.refcnt != NULL);
     if (__sync_sub_and_fetch(s.refcnt, 1) == 0) {
         git_repository_free(s.ptr);
         free(s.refcnt);
+        s.refcnt = NULL;
     }
 }
 

@@ -163,7 +163,10 @@ int parse_options(int argc, char *argv[], options *opt) {
     // Set up the pattern matcher
     switch (opt->mode) {
     case REGEX: {
-        int flags = opt->icase ? PCRE_CASELESS : 0;
+        int flags = PCRE_UCP | PCRE_UTF8;
+        if (opt->icase) {
+            flags |= PCRE_CASELESS;
+        }
 
         // Compile pattern
         const char *error;
