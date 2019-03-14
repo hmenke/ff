@@ -100,10 +100,12 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
           const char *glob_pattern, int glob_flags,
           // GIT
           shared_ptr repo) {
+    // If maximum depth is exceeded we stop
     if (opt->max_depth > 0 && depth >= opt->max_depth) {
         return;
     }
 
+    // Traverse the directory
     foreach_opendir(entry, parent) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
@@ -129,7 +131,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             }
         }
 
-        // Assemble filename
+        // Assemble full filename
         size_t l_current = l_parent + d_namlen + 1;
         char *current = (char *)malloc((l_current + 1) * sizeof(char));
         strncpy(current, parent, l_parent);
@@ -161,16 +163,25 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             break;
         }
 
+        // If the current item is a directory itself, queue it for
+        // traversal
         if (entry->d_type == DT_DIR) {
+            // Increment the flagman count
             flagman_acquire(opt->flagman_lock);
+
+            // If this directory is a git repo, open it so we can scan
+            // .gitignore
             shared_ptr currentrepo = make_shared(NULL);
             if (!opt->no_ignore) {
                 if (git_repository_open(&currentrepo.ptr, current) != 0) {
+                    // We failed, so we have to free the refcnt of NULL
                     free_shared(currentrepo);
                     // If it is not a git repo, duplicate the current handle
                     currentrepo = make_shared_copy(repo);
                 }
             }
+
+            // Queue the new item
             message *m = message_new(
                 message_body_new(depth + 1, l_current, current, currentrepo),
                 message_body_free);
@@ -184,6 +195,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 static void *worker(void *arg) {
     const options *const opt = (options *)arg;
 
+    // Assemble some thread-local storage, such as JIT stack for PCRE
+    // or options for globbing
     pcre *re = NULL;
     pcre_extra *extra = NULL;
     pcre_jit_stack *jit_stack = NULL;
@@ -193,7 +206,6 @@ static void *worker(void *arg) {
 
     switch (opt->mode) {
     case REGEX: {
-        // Compile pattern
         const char *error;
         extra = pcre_study(opt->match.re, PCRE_STUDY_JIT_COMPILE, &error);
         assert(extra != NULL);
@@ -209,9 +221,12 @@ static void *worker(void *arg) {
         break;
     }
 
-    git_libgit2_init();
-
+    // This is the main loop.
+    //
+    // Each message in the queue is a directory, so we fetch one
+    // message from the queue and walk the directory tree.
     foreach_queue_get(msg, opt->q) {
+        // Dissect the message
         message_body *b = (message_body *)message_data(msg);
         int depth = b->depth;
         size_t l_parent = b->len;
@@ -221,12 +236,12 @@ static void *worker(void *arg) {
         // Walk the directory tree
         walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
              glob_flags, repo);
+
+        // We are finished, so we can decrement the flagman count
         flagman_release(opt->flagman_lock);
     }
 
-    git_libgit2_shutdown();
-
-    // Cleanup
+    // Cleanup the thread-local state
     switch (opt->mode) {
     case REGEX:
         pcre_free_study(extra);
@@ -243,6 +258,8 @@ static void *worker(void *arg) {
 
 int main(int argc, char *argv[]) {
     options opt;
+
+    // Defaults
     opt.mode = NONE;
     opt.only_type = DT_UNKNOWN;
     opt.skip_hidden = true;
@@ -252,6 +269,7 @@ int main(int argc, char *argv[]) {
     opt.no_ignore = false;
     opt.nthreads = get_nprocs();
 
+    // Parse the command line
     switch (parse_options(argc, argv, &opt)) {
     case OPTIONS_SUCCESS:
         break;
@@ -261,14 +279,17 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // Initialize libgit2 global state.  No idea whether this has to
+    // be thread-local.  The documentation is not very clear on this.
+    // It doesn't seem to be an issue so far.
+    git_libgit2_init();
+
     // Open a new message queue
     opt.q = queue_new();
 
     // Acquire the flagman lock
     opt.flagman_lock = flagman_new();
     flagman_acquire(opt.flagman_lock);
-
-    git_libgit2_init();
 
     // Start threads
     pthread_t *thread = (pthread_t *)malloc(opt.nthreads * sizeof(pthread_t));
@@ -308,14 +329,16 @@ int main(int argc, char *argv[]) {
         pthread_join(thread[i], NULL);
     }
 
+    // Cleanup memory
     if (opt.mode == REGEX) {
         pcre_free(opt.match.re);
     }
 
     free(thread);
-    git_libgit2_shutdown();
     flagman_free(opt.flagman_lock);
     queue_free(opt.q);
+
+    git_libgit2_shutdown();
 
     return 0;
 }
