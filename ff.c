@@ -207,7 +207,7 @@ static void *worker(void *arg) {
         break;
     }
 
-    // git_libgit2_init();
+    git_libgit2_init();
 
     foreach_queue_get(msg, opt->q) {
         message_body *b = (message_body *)message_data(msg);
@@ -222,7 +222,7 @@ static void *worker(void *arg) {
         flagman_release(opt->flagman_lock);
     }
 
-    // git_libgit2_shutdown();
+    git_libgit2_shutdown();
 
     // Cleanup
     switch (opt->mode) {
