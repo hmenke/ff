@@ -1,4 +1,4 @@
-CFLAGS += -Wall -Wextra -Wpedantic
+CFLAGS += -Wall -Wextra -Wpedantic -Igeneric
 LDLIBS += -lpcre -lpthread -lgit2
 
 all: CFLAGS += -std=gnu99 -O3 -flto
@@ -10,8 +10,8 @@ debug: ff
 cpp: CC = c++ -x c++
 cpp: ff
 
-ff: dircolors.c \
-    ff.c        \
-    flagman.c   \
-    message.c   \
+ff: generic/dircolors.c \
+    ff.c                \
+    generic/flagman.c   \
+    generic/message.c   \
     options.c
