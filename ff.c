@@ -92,6 +92,29 @@ void process_match(const char *real_path, const char *dir_name,
     }
 }
 
+int filter_parents(const struct dirent *entry) {
+    const char *d_name = entry->d_name;
+
+    // Skip current and parent
+    if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
+        return 0;
+    }
+
+    return 1;
+}
+
+int filter_hidden(const struct dirent *entry) {
+    const char *d_name = entry->d_name;
+    size_t d_namlen = strlen(d_name);
+
+    // Skip hidden
+    if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
+        return 0;
+    }
+
+    return filter_parents(entry);
+}
+
 void walk(const char *parent, const size_t l_parent, const options *const opt,
           const int depth,
           // PCRE
@@ -105,22 +128,15 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         return;
     }
 
+    int (*filter)(const struct dirent *entry) = filter_parents;
+    if (opt->skip_hidden) {
+        filter = filter_hidden;
+    }
+
     // Traverse the directory
-    foreach_opendir(entry, parent) {
+    foreach_scandir(entry, parent, filter) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
-
-        // Skip current and parent
-        if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
-            continue;
-        }
-
-        // Skip hidden
-        if (opt->skip_hidden) {
-            if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
-                continue;
-            }
-        }
 
         // Check .gitignore
         if (!opt->no_ignore && repo.ptr != NULL) {
