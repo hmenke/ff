@@ -14,4 +14,5 @@ ff: generic/dircolors.c \
     ff.c                \
     generic/flagman.c   \
     generic/message.c   \
-    options.c
+    options.c           \
+    regex.c

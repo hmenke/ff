@@ -2,6 +2,7 @@
 
 #include "flagman.h"
 #include "message.h"
+#include "regex.h"
 
 // C standard library
 #include <stdbool.h>
@@ -17,7 +18,7 @@ typedef struct {
 
     // tagged union
     union {
-        pcre *re;
+        regex *re;
         const char *pattern;
     } match;
     match_mode mode;

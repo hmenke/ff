@@ -171,19 +171,8 @@ int parse_options(int argc, char *argv[], options *opt) {
     // Set up the pattern matcher
     switch (opt->mode) {
     case REGEX: {
-        int flags = PCRE_UCP | PCRE_UTF8;
-        if (opt->icase) {
-            flags |= PCRE_CASELESS;
-        }
-
         // Compile pattern
-        const char *error;
-        int erroffset;
-        opt->match.re = pcre_compile(pattern, flags, &error, &erroffset, NULL);
-        if (opt->match.re == NULL) {
-            fprintf(stderr, "Invalid regex: %s at %d\n", error, erroffset);
-            return OPTIONS_FAILURE;
-        }
+        opt->match.re = regex_compile(pattern, opt->icase);
     } break;
     case GLOB:
         opt->match.pattern = pattern;

@@ -7,6 +7,7 @@
 #include "macros.h"
 #include "message.h"
 #include "options.h"
+#include "regex.h"
 
 // C standard library
 #include <assert.h>
@@ -20,9 +21,6 @@
 #include <pthread.h>
 #include <sys/sysinfo.h>
 #include <unistd.h>
-
-// PCRE
-#include <pcre.h>
 
 // Git
 #include <git2.h>
@@ -118,7 +116,7 @@ int filter_hidden(const struct dirent *entry) {
 void walk(const char *parent, const size_t l_parent, const options *const opt,
           const int depth,
           // PCRE
-          pcre *re, pcre_extra *extra, pcre_jit_stack *jit_stack,
+          regex *re, regex_storage *mem,
           // GLOB
           const char *glob_pattern, int glob_flags,
           // GIT
@@ -164,9 +162,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         // Perform the match
         switch (opt->mode) {
         case REGEX: {
-            int ovector[3];
-            if (pcre_jit_exec(re, extra, d_name, d_namlen, 0, 0, ovector, 3,
-                              jit_stack) > 0) {
+            if (regex_match(re, mem, d_name, d_namlen)) {
                 goto success;
             }
             break;
@@ -223,22 +219,17 @@ static void *worker(void *arg) {
 
     // Assemble some thread-local storage, such as JIT stack for PCRE
     // or options for globbing
-    pcre *re = NULL;
-    pcre_extra *extra = NULL;
-    pcre_jit_stack *jit_stack = NULL;
+    regex *re = NULL;
+    regex_storage *mem = NULL;
 
     const char *glob_pattern = NULL;
     int glob_flags = 0;
 
     switch (opt->mode) {
-    case REGEX: {
-        const char *error;
-        extra = pcre_study(opt->match.re, PCRE_STUDY_JIT_COMPILE, &error);
-        assert(extra != NULL);
-        jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
-        assert(jit_stack != NULL);
-        pcre_assign_jit_stack(extra, NULL, jit_stack);
-    } break;
+    case REGEX:
+        re = opt->match.re;
+        mem = regex_storage_new(re);
+        break;
     case GLOB:
         glob_pattern = opt->match.pattern;
         glob_flags = opt->icase ? FNM_CASEFOLD : 0;
@@ -260,7 +251,7 @@ static void *worker(void *arg) {
         shared_ptr repo = b->repo;
 
         // Walk the directory tree
-        walk(parent, l_parent, opt, depth, re, extra, jit_stack, glob_pattern,
+        walk(parent, l_parent, opt, depth, re, mem, glob_pattern,
              glob_flags, repo);
 
         // We are finished, so we can decrement the flagman count
@@ -270,8 +261,7 @@ static void *worker(void *arg) {
     // Cleanup the thread-local state
     switch (opt->mode) {
     case REGEX:
-        pcre_free_study(extra);
-        pcre_jit_stack_free(jit_stack);
+        regex_storage_free(mem);
         break;
     case GLOB:
         break;
@@ -358,7 +348,7 @@ int main(int argc, char *argv[]) {
 
     // Cleanup memory
     if (opt.mode == REGEX) {
-        pcre_free(opt.match.re);
+        regex_free(opt.match.re);
     }
 
     free(thread);
