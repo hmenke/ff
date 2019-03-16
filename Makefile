@@ -1,5 +1,5 @@
 CFLAGS += -Wall -Wextra -Wpedantic -Igeneric
-LDLIBS += -lpcre -lpthread -lgit2
+LDLIBS += -lpcre -lpthread
 
 all: CFLAGS += -std=gnu99 -O3 -flto
 all: ff
@@ -11,8 +11,9 @@ cpp: CC = c++ -x c++
 cpp: ff
 
 ff: generic/dircolors.c \
-    ff.c                \
     generic/flagman.c   \
+    generic/gitignore.c \
     generic/message.c   \
+    ff.c                \
     options.c           \
     regex.c

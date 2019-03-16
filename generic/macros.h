@@ -4,6 +4,12 @@
 // should never include any headers.  Clients are expected to include
 // the necessary headers.
 
+// needs <stdlib.h>
+#define with_file(f, path, mode)                                               \
+    for (FILE *f = fopen(path, mode), *_continue = (FILE *)(size_t)1;          \
+         f != NULL && ((size_t)_continue || fclose(f));                        \
+         _continue = (FILE *)(size_t)0)
+
 // needs <pthread.h>
 #define with_pthread_mutex(mutex)                                              \
     for (int _continue = (pthread_mutex_lock(mutex), 1); _continue;            \

@@ -4,6 +4,7 @@
 
 #include "dircolors.h"
 #include "flagman.h"
+#include "gitignore.h"
 #include "macros.h"
 #include "message.h"
 #include "options.h"
@@ -22,16 +23,13 @@
 #include <sys/sysinfo.h>
 #include <unistd.h>
 
-// Git
-#include <git2.h>
-
 typedef struct _shared_ptr shared_ptr;
 struct _shared_ptr {
-    git_repository *ptr;
+    gitignore *ptr;
     int *refcnt;
 };
 
-shared_ptr make_shared(git_repository *repo) {
+shared_ptr make_shared(gitignore *repo) {
     int *refcnt = (int *)malloc(sizeof(int));
     *refcnt = 1;
 
@@ -45,7 +43,7 @@ shared_ptr make_shared(git_repository *repo) {
 void free_shared(shared_ptr s) {
     assert(s.refcnt != NULL);
     if (__sync_sub_and_fetch(s.refcnt, 1) == 0) {
-        git_repository_free(s.ptr);
+        gitignore_free(s.ptr);
         free(s.refcnt);
         s.refcnt = NULL;
     }
@@ -144,9 +142,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
         // Check .gitignore
         if (!opt->no_ignore && repo.ptr != NULL) {
-            int ignored = 0;
-            git_ignore_path_is_ignored(&ignored, repo.ptr, entry->d_name);
-            if (ignored == 1) {
+            if (gitignore_is_ignored(repo.ptr, entry->d_name, entry->d_type == DT_DIR)) {
                 continue;
             }
         }
@@ -191,7 +187,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             // .gitignore
             shared_ptr currentrepo = make_shared(NULL);
             if (!opt->no_ignore) {
-                if (git_repository_open(&currentrepo.ptr, current) != 0) {
+                if ((currentrepo.ptr = gitignore_new(current)) != 0) {
                     // We failed, so we have to free the refcnt of NULL
                     free_shared(currentrepo);
                     // If it is not a git repo, duplicate the current handle
@@ -296,11 +292,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // Initialize libgit2 global state.  No idea whether this has to
-    // be thread-local.  The documentation is not very clear on this.
-    // It doesn't seem to be an issue so far.
-    git_libgit2_init();
-
     // Open a new message queue
     opt.q = queue_new();
 
@@ -318,7 +309,7 @@ int main(int argc, char *argv[]) {
     if (opt.optind == argc) {
         shared_ptr repo = make_shared(NULL);
         if (!opt.no_ignore) {
-            git_repository_open_ext(&repo.ptr, ".", 0, NULL);
+            repo.ptr = gitignore_new(".");
         }
         message *msg =
             message_new(message_body_new(0, 1, ".", repo), message_body_free);
@@ -328,7 +319,7 @@ int main(int argc, char *argv[]) {
     for (int arg = opt.optind; arg < argc; ++arg) {
         shared_ptr repo = make_shared(NULL);
         if (!opt.no_ignore) {
-            git_repository_open_ext(&repo.ptr, argv[arg], 0, NULL);
+            repo.ptr = gitignore_new(argv[arg]);
         }
         message *msg =
             message_new(message_body_new(0, strlen(argv[arg]), argv[arg], repo),
@@ -354,8 +345,6 @@ int main(int argc, char *argv[]) {
     free(thread);
     flagman_free(opt.flagman_lock);
     queue_free(opt.q);
-
-    git_libgit2_shutdown();
 
     return 0;
 }
