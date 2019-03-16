@@ -166,13 +166,16 @@ bool glob_match(glob *g, const char *path, bool isdir) {
         match = true;
     }
 
-    if (g->is_whitelisted) {
+    if (match && g->is_whitelisted) {
         return !match;
     }
     return match;
 }
 
 void glob_free(glob *g) {
+    if (g == NULL) {
+        return;
+    }
     free(g->pattern);
     free(g);
     g = NULL;
@@ -181,8 +184,9 @@ void glob_free(glob *g) {
 // Linked list of globs
 
 #define foreach_glob(gl, globlist)                                             \
-    for (glob *gl = NULL, *_gn = (glob *)(globlist->head);                     \
-         ((globnode *)_gn) != globlist->tail && (gl = ((globnode *)_gn)->g);   \
+    for (glob *gl = NULL, *_gn = globlist ? (glob *)(globlist->head) : NULL;   \
+         ((globnode *)_gn) != NULL && ((globnode *)_gn) != globlist->tail &&   \
+         (gl = ((globnode *)_gn)->g);                                          \
          _gn = (glob *)((globnode *)_gn)->next)
 
 typedef struct _globnode globnode;
@@ -223,6 +227,9 @@ void globlist_append(globlist *gl, glob *g) {
 }
 
 void globlist_free(globlist *gl) {
+    if (gl == NULL) {
+        return;
+    }
     globnode *gn = gl->head;
     while (gn != NULL) {
         globnode *next = gn->next;
@@ -231,6 +238,7 @@ void globlist_free(globlist *gl) {
         gn = next;
     }
     free(gl);
+    gl = NULL;
 }
 
 // gitignore
@@ -317,7 +325,9 @@ gitignore *gitignore_new(const char *path) {
 }
 
 void gitignore_free(gitignore *g) {
-    if (g == NULL) return;
+    if (g == NULL) {
+        return;
+    }
     globlist_free(g->local);
     free(g->path);
     free(g);

@@ -32,6 +32,9 @@ message *message_new(void *data, void (*freefn)(void *)) {
 void *message_data(message *msg) { return msg->data; }
 
 void message_free(message *msg) {
+    if (msg == NULL) {
+        return;
+    }
     msg->freefn(msg->data);
     free(msg);
     msg = NULL;
@@ -63,6 +66,9 @@ queue *queue_new() {
 }
 
 void queue_free(queue *q) {
+    if (q == NULL) {
+        return;
+    }
     sem_destroy(&q->length);
     pthread_mutex_destroy(&q->lock);
     free(q);

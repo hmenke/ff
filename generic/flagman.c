@@ -29,6 +29,9 @@ flagman *flagman_new() {
 }
 
 void flagman_free(flagman *flagman_lock) {
+    if (flagman_lock == NULL) {
+        return;
+    }
     pthread_mutex_destroy(&flagman_lock->completion_lock);
     pthread_mutex_destroy(&flagman_lock->count_lock);
     free(flagman_lock);

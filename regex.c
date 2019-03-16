@@ -47,8 +47,12 @@ bool regex_match(regex *re, regex_storage *mem, const char *str, int len) {
 }
 
 void regex_free(regex *re) {
+    if (re == NULL) {
+        return;
+    }
     pcre_free(re->re);
     free(re);
+    re = NULL;
 }
 
 regex_storage *regex_storage_new(regex *re) {
@@ -63,7 +67,11 @@ regex_storage *regex_storage_new(regex *re) {
 }
 
 void regex_storage_free(regex_storage *mem) {
+    if (mem == NULL) {
+        return;
+    }
     pcre_free_study(mem->extra);
     pcre_jit_stack_free(mem->jit_stack);
     free(mem);
+    mem = NULL;
 }

@@ -187,7 +187,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             // .gitignore
             shared_ptr currentrepo = make_shared(NULL);
             if (!opt->no_ignore) {
-                if ((currentrepo.ptr = gitignore_new(current)) != 0) {
+                if ((currentrepo.ptr = gitignore_new(current)) == NULL) {
                     // We failed, so we have to free the refcnt of NULL
                     free_shared(currentrepo);
                     // If it is not a git repo, duplicate the current handle
