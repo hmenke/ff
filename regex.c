@@ -18,7 +18,7 @@ struct _regex_storage {
 };
 
 regex *regex_compile(const char *pattern, bool icase) {
-    regex *re = (regex *)malloc(sizeof(regex *));
+    regex *re = (regex *)malloc(sizeof(regex));
 
     int flags = PCRE_UCP | PCRE_UTF8;
     if (icase) {
@@ -52,7 +52,7 @@ void regex_free(regex *re) {
 }
 
 regex_storage *regex_storage_new(regex *re) {
-    regex_storage *mem = (regex_storage *)malloc(sizeof(regex_storage *));
+    regex_storage *mem = (regex_storage *)malloc(sizeof(regex_storage));
     const char *error;
     mem->extra = pcre_study(re->re, PCRE_STUDY_JIT_COMPILE, &error);
     assert(mem->extra != NULL);

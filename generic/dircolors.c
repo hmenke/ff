@@ -69,6 +69,7 @@ const char *dircolor(const char *realpath) {
     struct stat statbuf;
     if (lstat(realpath, &statbuf) != 0) {
         perror("lstat failed");
+        return "";
     }
 
     switch (statbuf.st_mode & S_IFMT) {
