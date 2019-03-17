@@ -62,12 +62,11 @@ bool isempty(const char *str) {
 
 typedef struct _glob glob;
 
-enum glob_flags { NONE = 1 << 0, WHITELISTED = 1 << 1 };
+enum glob_flags { NONE = 1 << 0, WHITELISTED = 1 << 1, ONLY_DIR = 1 << 2 };
 
 struct _glob {
     char *pattern;
     enum glob_flags flags;
-    bool only_dir;
 };
 
 glob *glob_new(const char *str) {
@@ -94,7 +93,6 @@ glob *glob_new(const char *str) {
     glob *g = (glob *)malloc(sizeof(glob));
     g->pattern = NULL;
     g->flags = NONE;
-    g->only_dir = false;
 
     // An optional prefix "!" which negates the pattern; any matching file
     // excluded by a previous pattern will become included again. It is
@@ -131,7 +129,7 @@ glob *glob_new(const char *str) {
     while (end > str && *end == '/') {
         --len;
         --end;
-        g->only_dir = true;
+        g->flags |= ONLY_DIR;
     }
 
     // Manually work around that strncpy bullshit
@@ -143,7 +141,7 @@ glob *glob_new(const char *str) {
 }
 
 bool glob_match(glob *g, const char *path, bool isdir) {
-    if (g->only_dir && !isdir) {
+    if ((g->flags & ONLY_DIR) && !isdir) {
         return false;
     }
 
