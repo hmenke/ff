@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "gitignore.h"
 #include "macros.h"
 
 // C standard library
@@ -242,8 +243,6 @@ void globlist_free(globlist *gl) {
 
 // gitignore
 
-typedef struct _gitignore gitignore;
-
 struct _gitignore {
     char *path;
     globlist *local;
@@ -253,8 +252,10 @@ static globlist *gitignore_global = NULL;
 
 void gitignore_init_global() {
     // Check for and parse the global .gitignore file
-    const char *home;
-    char *ignorehome;
+    //
+    // TODO: Check ~/.gitconfig for core.excludesfile
+    const char *home = NULL;
+    char *ignorehome = NULL;
     if ((home = getenv("XDG_CONFIG_HOME")) != NULL) {
         size_t homelen = strlen(home);
         ignorehome = (char *)malloc((strlen(home) + sizeof("/git/ignore")) *
@@ -270,9 +271,9 @@ void gitignore_init_global() {
                 sizeof("/.config/git/ignore"));
     }
 
-    if (!isfile(ignorehome)) {
-        gitignore_global = NULL;
+    if (ignorehome == NULL || !isfile(ignorehome)) {
         free(ignorehome);
+        gitignore_global = NULL;
         return;
     }
 
