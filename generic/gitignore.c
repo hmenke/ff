@@ -168,9 +168,6 @@ bool glob_match(glob *g, const char *path, bool isdir) {
         match = true;
     }
 
-    if (match && (g->flags & WHITELISTED)) {
-        return !match;
-    }
     return match;
 }
 
@@ -359,19 +356,22 @@ void gitignore_free(gitignore *g) {
 bool gitignore_is_ignored(gitignore *g, const char *path, bool is_dir) {
     const char *rel = relpath(path, g->path);
 
+    bool is_ignored = false;
     foreach_glob(gl, g->local) {
-        // printf("IGNORE: [%s] [%s] matching [%s] %s\n", path, rel,
-        // gl->pattern, (gl->flags & WHITELISTED) ? "whitelisted" : "");
         if (glob_match(gl, rel, is_dir)) {
-            return true;
+            if (!(gl->flags & WHITELISTED)) {
+                is_ignored = true;
+            }
         }
     }
 
     foreach_glob(gl, gitignore_global) {
         if (glob_match(gl, path, is_dir)) {
-            return true;
+            if (!(gl->flags & WHITELISTED)) {
+                is_ignored = true;
+            }
         }
     }
 
-    return false;
+    return is_ignored;
 }
