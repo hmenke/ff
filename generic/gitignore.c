@@ -61,9 +61,11 @@ bool isempty(const char *str) {
 
 typedef struct _glob glob;
 
+enum glob_flags { NONE = 1 << 0, WHITELISTED = 1 << 1 };
+
 struct _glob {
     char *pattern;
-    bool is_whitelisted;
+    enum glob_flags flags;
     bool only_dir;
 };
 
@@ -83,14 +85,14 @@ glob *glob_new(const char *str) {
     if (*str == '#') {
         return NULL;
     }
-    if (*str == '\\' && *(str+1) == '#') {
+    if (*str == '\\' && *(str + 1) == '#') {
         ++str;
     }
 
     // All failures have been treated so we can allocate now,
     glob *g = (glob *)malloc(sizeof(glob));
     g->pattern = NULL;
-    g->is_whitelisted = false;
+    g->flags = NONE;
     g->only_dir = false;
 
     // An optional prefix "!" which negates the pattern; any matching file
@@ -102,10 +104,10 @@ glob *glob_new(const char *str) {
     // front of the first "!" for patterns that begin with a literal "!",
     // for example, "\!important!.txt".
     if (*str == '!') {
-        g->is_whitelisted = true;
+        g->flags |= WHITELISTED;
         ++str;
     }
-    if (*str == '\\' && *(str+1) == '!') {
+    if (*str == '\\' && *(str + 1) == '!') {
         ++str;
     }
 
@@ -166,7 +168,7 @@ bool glob_match(glob *g, const char *path, bool isdir) {
         match = true;
     }
 
-    if (match && g->is_whitelisted) {
+    if (match && (g->flags & WHITELISTED)) {
         return !match;
     }
     return match;
@@ -248,34 +250,89 @@ typedef struct _gitignore gitignore;
 struct _gitignore {
     char *path;
     globlist *local;
-    globlist *global;
 };
 
-gitignore *gitignore_new(const char *path) {
-    if (!isfile(path)) {
-        size_t pathlen = strlen(path);
-        size_t len = pathlen + sizeof("/.gitignore");
-        char *file = (char*)malloc(len * sizeof(char));
-        strncpy(file, path, pathlen);
-        strncpy(file + pathlen, "/.gitignore", sizeof("/.gitignore"));
-        path = file;
-        if (!isfile(file)) {
-            return NULL;
-        }
+static globlist *gitignore_global = NULL;
+
+void gitignore_init_global() {
+    // Check for and parse the global .gitignore file
+    const char *home;
+    char *ignorehome;
+    if ((home = getenv("XDG_CONFIG_HOME")) != NULL) {
+        size_t homelen = strlen(home);
+        ignorehome = (char *)malloc((strlen(home) + sizeof("/git/ignore")) *
+                                    sizeof(char));
+        strncpy(ignorehome, home, homelen);
+        strncpy(ignorehome + homelen, "/git/ignore", sizeof("/git/ignore"));
+    } else if ((home = getenv("HOME")) != NULL) {
+        size_t homelen = strlen(home);
+        ignorehome = (char *)malloc(
+            (strlen(home) + sizeof("/.config/git/ignore")) * sizeof(char));
+        strncpy(ignorehome, home, homelen);
+        strncpy(ignorehome + homelen, "/.config/git/ignore",
+                sizeof("/.config/git/ignore"));
     }
 
-    gitignore *g = (gitignore *)malloc(sizeof(gitignore));
-    g->path = dirname(strdup(path));
-    g->local = globlist_new();
+    if (!isfile(ignorehome)) {
+        gitignore_global = NULL;
+        free(ignorehome);
+        return;
+    }
 
-    // Parse the local .gitignore file
-    with_file(f, path, "r") {
+    with_file(f, ignorehome, "r") {
         char *line = NULL;
         size_t n = 0;
         ssize_t len = 0;
-        while((len = getline(&line, &n, f)) != -1) {
+        while ((len = getline(&line, &n, f)) != -1) {
             // Discard the newline char
-            line[len-1] = '\0';
+            line[len - 1] = '\0';
+
+            glob *gl = glob_new(line);
+            if (gl) {
+                globlist_append(gitignore_global, gl);
+            }
+        }
+        free(line);
+    }
+
+    free(ignorehome);
+}
+
+void gitignore_free_global() {
+    if (gitignore_global == NULL) {
+        return;
+    }
+    globlist_free(gitignore_global);
+    gitignore_global = NULL;
+}
+
+gitignore *gitignore_new(const char *path) {
+    if (!isdir(path)) {
+        return NULL;
+    }
+
+    size_t pathlen = strlen(path);
+    size_t len = pathlen + sizeof("/.gitignore");
+    char *file = (char *)malloc(len * sizeof(char));
+    strncpy(file, path, pathlen);
+    strncpy(file + pathlen, "/.gitignore", sizeof("/.gitignore"));
+    if (!isfile(file)) {
+        free(file);
+        return NULL;
+    }
+
+    gitignore *g = (gitignore *)malloc(sizeof(gitignore));
+    g->path = strdup(path);
+    g->local = globlist_new();
+
+    // Parse the local .gitignore file
+    with_file(f, file, "r") {
+        char *line = NULL;
+        size_t n = 0;
+        ssize_t len = 0;
+        while ((len = getline(&line, &n, f)) != -1) {
+            // Discard the newline char
+            line[len - 1] = '\0';
 
             glob *gl = glob_new(line);
             if (gl) {
@@ -285,42 +342,7 @@ gitignore *gitignore_new(const char *path) {
         free(line);
     }
 
-    // Check for and parse the global .gitignore file
-    const char *home;
-    char *ignorehome;
-    if ((home = getenv("XDG_CONFIG_HOME")) != NULL) {
-        size_t homelen = strlen(home);
-        ignorehome = (char *)malloc((strlen(home) + sizeof("/git/ignore"))*sizeof(char));
-        strncpy(ignorehome, home, homelen);
-        strncpy(ignorehome + homelen, "/git/ignore", sizeof("/git/ignore"));
-    } else if ((home = getenv("HOME")) != NULL) {
-        size_t homelen = strlen(home);
-        ignorehome = (char *)malloc((strlen(home) + sizeof("/.config/git/ignore"))*sizeof(char));
-        strncpy(ignorehome, home, homelen);
-        strncpy(ignorehome + homelen, "/.config/git/ignore", sizeof("/.config/git/ignore"));
-    }
-
-    if (!isfile(ignorehome)) {
-        g->global = NULL;
-        return g;
-    }
-
-    with_file(f, ignorehome, "r") {
-        char *line = NULL;
-        size_t n = 0;
-        ssize_t len = 0;
-        while((len = getline(&line, &n, f)) != -1) {
-            // Discard the newline char
-            line[len-1] = '\0';
-
-            glob *gl = glob_new(line);
-            if (gl) {
-                globlist_append(g->global, gl);
-            }
-        }
-        free(line);
-    }
-
+    free(file);
     return g;
 }
 
@@ -338,13 +360,15 @@ bool gitignore_is_ignored(gitignore *g, const char *path, bool is_dir) {
     const char *rel = relpath(path, g->path);
 
     foreach_glob(gl, g->local) {
+        // printf("IGNORE: [%s] [%s] matching [%s] %s\n", path, rel,
+        // gl->pattern, (gl->flags & WHITELISTED) ? "whitelisted" : "");
         if (glob_match(gl, rel, is_dir)) {
             return true;
         }
     }
 
-    foreach_glob(gl, g->global) {
-        if (glob_match(gl, rel, is_dir)) {
+    foreach_glob(gl, gitignore_global) {
+        if (glob_match(gl, path, is_dir)) {
             return true;
         }
     }

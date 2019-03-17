@@ -140,13 +140,6 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
 
-        // Check .gitignore
-        if (!opt->no_ignore && repo.ptr != NULL) {
-            if (gitignore_is_ignored(repo.ptr, entry->d_name, entry->d_type == DT_DIR)) {
-                continue;
-            }
-        }
-
         // Assemble full filename
         size_t l_current = l_parent + d_namlen + 1;
         char *current = (char *)malloc((l_current + 1) * sizeof(char));
@@ -154,6 +147,15 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         strncpy(current + l_parent, "/", 1);
         strncpy(current + l_parent + 1, d_name, d_namlen);
         current[l_current] = '\0';
+
+        // Check .gitignore
+        if (!opt->no_ignore && repo.ptr != NULL) {
+            if (gitignore_is_ignored(repo.ptr, current,
+                                     entry->d_type == DT_DIR)) {
+                free(current);
+                continue;
+            }
+        }
 
         // Perform the match
         switch (opt->mode) {
@@ -247,8 +249,8 @@ static void *worker(void *arg) {
         shared_ptr repo = b->repo;
 
         // Walk the directory tree
-        walk(parent, l_parent, opt, depth, re, mem, glob_pattern,
-             glob_flags, repo);
+        walk(parent, l_parent, opt, depth, re, mem, glob_pattern, glob_flags,
+             repo);
 
         // We are finished, so we can decrement the flagman count
         flagman_release(opt->flagman_lock);
@@ -291,6 +293,8 @@ int main(int argc, char *argv[]) {
     case OPTIONS_HELP: // --help
         return 0;
     }
+
+    gitignore_init_global();
 
     // Open a new message queue
     opt.q = queue_new();
@@ -345,6 +349,7 @@ int main(int argc, char *argv[]) {
     free(thread);
     flagman_free(opt.flagman_lock);
     queue_free(opt.q);
+    gitignore_free_global();
 
     return 0;
 }

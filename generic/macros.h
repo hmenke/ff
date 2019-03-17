@@ -41,7 +41,9 @@
     for (struct dirent **_namelist = NULL, *entry = NULL,                      \
                        *_n = (struct dirent *)(ssize_t)scandir(                \
                            path, &_namelist, filter, alphasort),               \
-                       *_i = (struct dirent *)(ssize_t)0;                      \
-         ((ssize_t)_n) != -1 && ((ssize_t)_i) < ((ssize_t)_n) &&               \
-         (entry = _namelist[((ssize_t)_i)]);                                   \
-         _i = (struct dirent *)((ssize_t)_i + 1))
+                       *_i = 0;                                                \
+         (((ssize_t)_n) != -1 && ((ssize_t)_i) < ((ssize_t)_n) &&              \
+          (entry = _namelist[(ssize_t)_i]) != NULL) ||                         \
+         (free(_namelist), 0);                                                 \
+         _i = (struct dirent *)(free(_namelist[(ssize_t)_i]),                  \
+                                ((ssize_t)_i) + 1))
