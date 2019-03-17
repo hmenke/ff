@@ -359,16 +359,18 @@ bool gitignore_is_ignored(gitignore *g, const char *path, bool is_dir) {
     bool is_ignored = false;
     foreach_glob(gl, g->local) {
         if (glob_match(gl, rel, is_dir)) {
-            if (!(gl->flags & WHITELISTED)) {
-                is_ignored = true;
+            is_ignored = true;
+            if (gl->flags & WHITELISTED) {
+                is_ignored = false;
             }
         }
     }
 
     foreach_glob(gl, gitignore_global) {
         if (glob_match(gl, path, is_dir)) {
-            if (!(gl->flags & WHITELISTED)) {
-                is_ignored = true;
+            is_ignored = true;
+            if (gl->flags & WHITELISTED) {
+                is_ignored = false;
             }
         }
     }
