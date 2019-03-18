@@ -42,7 +42,7 @@ shared_ptr make_shared(gitignore *repo) {
 
 void free_shared(shared_ptr s) {
     assert(s.refcnt != NULL);
-    if (__sync_sub_and_fetch(s.refcnt, 1) == 0) {
+    if (__atomic_sub_fetch(s.refcnt, 1, __ATOMIC_SEQ_CST) == 0) {
         gitignore_free(s.ptr);
         free(s.refcnt);
         s.refcnt = NULL;
@@ -50,7 +50,7 @@ void free_shared(shared_ptr s) {
 }
 
 shared_ptr make_shared_copy(shared_ptr s) {
-    __sync_add_and_fetch(s.refcnt, 1);
+    __atomic_add_fetch(s.refcnt, 1, __ATOMIC_SEQ_CST);
     return s;
 }
 

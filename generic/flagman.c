@@ -35,16 +35,14 @@ void flagman_free(flagman *flagman_lock) {
 }
 
 void flagman_acquire(flagman *flagman_lock) {
-    if (__sync_fetch_and_add(&flagman_lock->count,1) == 0) {
+    if (__atomic_fetch_add(&flagman_lock->count, 1, __ATOMIC_SEQ_CST) == 0) {
         pthread_mutex_lock(&flagman_lock->completion_lock);
     }
 }
 
 void flagman_release(flagman *flagman_lock) {
-    if (flagman_lock->count == 0) {
-        return;
-    }
-    if (__sync_sub_and_fetch(&flagman_lock->count,1) == 0) {
+    if (__atomic_load_n(&flagman_lock->count, __ATOMIC_SEQ_CST) != 0 &&
+        __atomic_sub_fetch(&flagman_lock->count, 1, __ATOMIC_SEQ_CST) == 0) {
         pthread_mutex_unlock(&flagman_lock->completion_lock);
     }
 }
