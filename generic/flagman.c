@@ -16,14 +16,12 @@
 
 struct _flagman {
     pthread_mutex_t completion_lock;
-    pthread_mutex_t count_lock;
     int count;
 };
 
 flagman *flagman_new() {
     flagman *flagman_lock = (flagman *)malloc(sizeof(flagman));
     pthread_mutex_init(&flagman_lock->completion_lock, NULL);
-    pthread_mutex_init(&flagman_lock->count_lock, NULL);
     flagman_lock->count = 0;
     return flagman_lock;
 }
@@ -33,28 +31,21 @@ void flagman_free(flagman *flagman_lock) {
         return;
     }
     pthread_mutex_destroy(&flagman_lock->completion_lock);
-    pthread_mutex_destroy(&flagman_lock->count_lock);
     free(flagman_lock);
 }
 
 void flagman_acquire(flagman *flagman_lock) {
-    with_pthread_mutex(&flagman_lock->count_lock) {
-        if (flagman_lock->count == 0) {
-            pthread_mutex_lock(&flagman_lock->completion_lock);
-        }
-        flagman_lock->count += 1;
+    if (__sync_fetch_and_add(&flagman_lock->count,1) == 0) {
+        pthread_mutex_lock(&flagman_lock->completion_lock);
     }
 }
 
 void flagman_release(flagman *flagman_lock) {
-    with_pthread_mutex(&flagman_lock->count_lock) {
-        if (flagman_lock->count == 0) {
-            break;
-        }
-        flagman_lock->count -= 1;
-        if (flagman_lock->count == 0) {
-            pthread_mutex_unlock(&flagman_lock->completion_lock);
-        }
+    if (flagman_lock->count == 0) {
+        return;
+    }
+    if (__sync_sub_and_fetch(&flagman_lock->count,1) == 0) {
+        pthread_mutex_unlock(&flagman_lock->completion_lock);
     }
 }
 
