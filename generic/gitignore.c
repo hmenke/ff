@@ -18,6 +18,11 @@
 #include <libgen.h>
 #include <sys/stat.h>
 
+#ifdef __CYGWIN__
+//#include <sys/termios.h>
+#define FNM_EXTMATCH  (1 << 5)
+#endif
+
 bool isfile(const char *path) {
     struct stat statbuf;
     if (lstat(path, &statbuf) != 0) {
