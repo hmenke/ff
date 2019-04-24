@@ -88,6 +88,10 @@ void process_match(const char *real_path, const char *dir_name,
     }
 }
 
+int cmp(const void *a, const void *b) {
+    return strcoll(*(char *const *)a, *(char *const *)b);
+}
+
 void walk(const char *parent, const size_t l_parent, const options *const opt,
           const int depth,
           // PCRE
@@ -197,8 +201,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
     }
 
-    qsort(names, cnt, sizeof(char *),
-          (int (*)(const void *, const void *))strcmp);
+    qsort(names, cnt, sizeof(char *), cmp);
     for (size_t i = 0; i < cnt; ++i) {
         const char *d_name = strrchr(names[i], '/') + 1;
         process_match(names[i], parent, d_name, opt);
