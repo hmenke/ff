@@ -20,7 +20,7 @@
 
 #ifdef __CYGWIN__
 //#include <sys/termios.h>
-#define FNM_EXTMATCH  (1 << 5)
+#define FNM_EXTMATCH (1 << 5)
 #endif
 
 bool isfile(const char *path) {
@@ -48,6 +48,10 @@ const char *relpath(const char *path, const char *start) {
     while (*path == *start) {
         ++path;
         ++start;
+    }
+
+    if (*path == '/') {
+        ++path;
     }
 
     return path;
@@ -118,8 +122,8 @@ glob *glob_new(const char *str) {
     size_t len = strlen(str);
     const char *end = str + len - 1;
 
-    // Trailing spaces are ignored unless they are quoted with backslash
-    // ("\").
+    // Trailing spaces are ignored, although Git allows them if they are quoted
+    // with backslash ("\").
     while (end > str && *end == ' ') {
         --len;
         --end;
@@ -138,9 +142,7 @@ glob *glob_new(const char *str) {
     }
 
     // Manually work around that strncpy bullshit
-    g->pattern = (char *)malloc((len + 1) * sizeof(char));
-    strncpy(g->pattern, str, len);
-    g->pattern[len] = '\0';
+    g->pattern = strndup(str, len);
 
     return g;
 }
@@ -188,7 +190,7 @@ void glob_free(glob *g) {
 
 #define foreach_glob(gl, globlist)                                             \
     for (glob *gl = NULL, *_gn = globlist ? (glob *)(globlist->head) : NULL;   \
-         ((globnode *)_gn) != NULL && ((globnode *)_gn) != globlist->tail &&   \
+         ((globnode *)_gn) != NULL && ((globnode *)_gn) != NULL &&             \
          (gl = ((globnode *)_gn)->g);                                          \
          _gn = (glob *)((globnode *)_gn)->next)
 
@@ -283,10 +285,12 @@ void gitignore_init_global() {
     with_file(f, ignorehome, "r") {
         char *line = NULL;
         size_t n = 0;
-        ssize_t len = 0;
-        while ((len = getline(&line, &n, f)) != -1) {
+        ssize_t llen = 0;
+        while ((llen = getline(&line, &n, f)) != -1) {
             // Discard the newline char
-            line[len - 1] = '\0';
+            if (isspace(line[llen - 1])) {
+                line[llen - 1] = '\0';
+            }
 
             glob *gl = glob_new(line);
             if (gl) {
@@ -333,7 +337,9 @@ gitignore *gitignore_new(const char *path) {
         ssize_t llen = 0;
         while ((llen = getline(&line, &n, f)) != -1) {
             // Discard the newline char
-            line[llen - 1] = '\0';
+            if (isspace(line[llen - 1])) {
+                line[llen - 1] = '\0';
+            }
 
             glob *gl = glob_new(line);
             if (gl) {
