@@ -1,8 +1,14 @@
 CFLAGS += -Wall -Wextra -Wpedantic -Igeneric
-LDLIBS += -lpcre -lpthread
+LDLIBS +=  -lpthread
 
-all: CFLAGS += -std=gnu99 -O3 -flto
-all: ff
+pcre: LDLIBS += -lpcre
+pcre: release
+
+posix: CFLAGS += -DUSE_POSIX_REGEX
+posix: release
+
+release: CFLAGS += -std=gnu99 -O3 -flto
+release: ff
 
 debug: CFLAGS += -std=gnu99 -g -fstack-protector -D_FORTIFY_SOURCE=2
 debug: ff

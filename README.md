@@ -2,7 +2,7 @@
 
 [![AppVeyor Build Status][appveyor-svg]][appveyor-link]
 
-Simplified version of *find* using the PCRE and libgit2 libraries.
+Simplified version of *find* using the PCRE library.
 
 *ff* has been inspired by [*fd*](https://github.com/sharkdp/fd).
 
@@ -30,6 +30,20 @@ folder generic and can be reused easily.
 
 - Command execution
 - Exclude files and directories
+
+## Building from source
+
+Building from source is very easy.  The only build dependencies are GCC, make,
+and optionally PCRE.  If PCRE is installed, you can build the default `pcre`
+target.
+```console
+$ make
+```
+If you do not have PCRE and don't want to install it, you can fall back to
+POSIX regex by builing the `posix` target instead.
+```console
+$ make posix
+```
 
 [appveyor-svg]: https://ci.appveyor.com/api/projects/status/03dntgenr4yvofrv/branch/master?svg=true
 [appveyor-link]: https://ci.appveyor.com/project/hmenke/ff/branch/master
