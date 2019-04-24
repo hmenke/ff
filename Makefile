@@ -14,7 +14,6 @@ ff: generic/dircolors.c \
     generic/flagman.c   \
     generic/gitignore.c \
     generic/message.c   \
-    generic/scandir.c   \
     ff.c                \
     options.c           \
     regex.c

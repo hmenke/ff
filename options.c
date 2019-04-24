@@ -67,7 +67,7 @@ int parse_options(int argc, char *argv[], options *opt) {
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:t:j:gHiIDh", long_options,
+    while ((c = getopt_long(argc, argv, "d:e:t:j:gHiIDh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         // Flags

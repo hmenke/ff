@@ -9,7 +9,6 @@
 #include "message.h"
 #include "options.h"
 #include "regex.h"
-#include "scandir.h"
 
 // C standard library
 #include <assert.h>
@@ -89,24 +88,6 @@ void process_match(const char *real_path, const char *dir_name,
     }
 }
 
-int filter(const struct dirent *entry, const void *const data) {
-    const options *const opt = data;
-    const char *d_name = entry->d_name;
-    size_t d_namlen = strlen(d_name);
-
-    // Skip current and parent
-    if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
-        return 0;
-    }
-
-    // Skip hidden
-    if (opt->skip_hidden && (d_name[0] == '.' || d_name[d_namlen - 1] == '~')) {
-        return 0;
-    }
-
-    return 1;
-}
-
 void walk(const char *parent, const size_t l_parent, const options *const opt,
           const int depth,
           // PCRE
@@ -121,9 +102,22 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
     }
 
     // Traverse the directory
-    foreach_scandir(entry, parent, filter, opt) {
+    size_t cnt = 0, len_names = 16;
+    char **names = (char **)malloc(len_names * sizeof(char *));
+    foreach_opendir(entry, parent) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
+
+        // Skip current and parent
+        if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
+            continue;
+        }
+
+        // Skip hidden
+        if (opt->skip_hidden &&
+            (d_name[0] == '.' || d_name[d_namlen - 1] == '~')) {
+            continue;
+        }
 
         // Assemble full filename
         size_t l_current = l_parent + d_namlen + 1;
@@ -132,6 +126,14 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         strncpy(current + l_parent, "/", 1);
         strncpy(current + l_parent + 1, d_name, d_namlen);
         current[l_current] = '\0';
+
+        // Filter by file extension (only files)
+        if (opt->ext && entry->d_type == DT_REG) {
+            const char *ext = strrchr(d_name, '.');
+            if (ext == NULL || strcmp(ext + 1, opt->ext) != 0) {
+                continue;
+            }
+        }
 
         // Check .gitignore
         if (!opt->no_ignore && repo.ptr != NULL) {
@@ -157,9 +159,14 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             break;
         case NONE:
         success:
-            if (opt->only_type == DT_UNKNOWN ||
-                opt->only_type == entry->d_type) {
-                process_match(current, parent, d_name, opt);
+            if (!(opt->ext && entry->d_type == DT_DIR) &&
+                (opt->only_type == DT_UNKNOWN ||
+                 opt->only_type == entry->d_type)) {
+                if (unlikely(cnt == len_names)) {
+                    len_names *= 2;
+                    names = (char **)realloc(names, len_names * sizeof(char *));
+                }
+                names[cnt++] = current;
             }
             break;
         }
@@ -188,9 +195,16 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                 message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
-
-        free(current);
     }
+
+    qsort(names, cnt, sizeof(char *),
+          (int (*)(const void *, const void *))strcmp);
+    for (size_t i = 0; i < cnt; ++i) {
+        const char *d_name = strrchr(names[i], '/') + 1;
+        process_match(names[i], parent, d_name, opt);
+        free(names[i]);
+    }
+    free(names);
 }
 
 static void *worker(void *arg) {
