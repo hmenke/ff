@@ -26,52 +26,84 @@ void print_usage(const char *msg) {
         "Usage: ff [FLAGS/OPTIONS] [<pattern>] [<path>...]\n"
         "Simplified version of GNU find using the PCRE library for regex.\n"
         "\n"
-        "OPTIONS:\n"
-        "  -d, --depth <n>      Maximum directory traversal depth\n"
-        "  -t, --type <x>       Restrict output to type with <x> one of\n"
-        "                           b   block device.\n"
-        "                           c   character device.\n"
-        "                           d   directory.\n"
-        "                           n   named pipe (FIFO).\n"
-        "                           l   symbolic link.\n"
-        "                           f   regular file.\n"
-        "                           s   UNIX domain socket.\n"
-        "  -j, --threads <n>    Use <n> threads for parallel directory traversal\n"
-        "\n"
         "FLAGS:\n"
-        "  -g, --glob           Match glob instead of regex\n"
-        "  -H, --hidden         Traverse hidden directories and files as well\n"
-        "  -I, --no-ignore      Disregard .gitignore\n"
-        "  -i, --ignore-case    Ignore case when applying the regex\n"
-        "  -D, --deterministic  Deterministic sorting within directories (SLOW!)\n"
-        "  -h, --help           Display this help and quit\n",
+        "  -g, --glob             Match glob instead of regex\n"
+        "  -H, --hidden           Traverse hidden directories and files as well\n"
+        "  -I, --no-ignore        Disregard .gitignore\n"
+        "  -i, --ignore-case      Ignore case when applying the regex\n"
+        "  -h, --help             Display this help and quit\n"
+        "\n"
+        "OPTIONS:\n"
+        "  -d, --max-depth <n>    Maximum directory traversal depth\n"
+        "  -e, --extension <ext>  Maximum directory traversal depth\n"
+        "  -j, --threads <n>      Use <n> threads for parallel directory traversal\n"
+        "  -t, --type <x>         Restrict output to type with <x> one of\n"
+        "                             b   block device.\n"
+        "                             c   character device.\n"
+        "                             d   directory.\n"
+        "                             n   named pipe (FIFO).\n"
+        "                             l   symbolic link.\n"
+        "                             f   regular file.\n"
+        "                             s   UNIX domain socket.\n",
         // clang-format on
-        stderr);
+        stdout);
 }
 
 int parse_options(int argc, char *argv[], options *opt) {
     int option_index = 0;
     static struct option long_options[] = {
-        {"depth", required_argument, NULL, 'd'},
-        {"type", required_argument, NULL, 't'},
-        {"threads", required_argument, NULL, 'j'},
+        // Flags
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
-        {"ignore-case", no_argument, NULL, 'i'},
         {"no-ignore", no_argument, NULL, 'I'},
-        {"deterministic", no_argument, NULL, 'D'},
+        {"ignore-case", no_argument, NULL, 'i'},
         {"help", no_argument, NULL, 'h'},
+        // Options
+        {"max-depth", required_argument, NULL, 'd'},
+        {"extension", required_argument, NULL, 'e'},
+        {"threads", required_argument, NULL, 'j'},
+        {"type", required_argument, NULL, 't'},
+        // Sentinel
         {NULL, 0, NULL, 0}};
 
     int c = -1;
     while ((c = getopt_long(argc, argv, "d:t:j:gHiIDh", long_options,
                             &option_index)) != -1) {
         switch (c) {
+        // Flags
+        case 'g':
+            opt->mode = GLOB;
+            break;
+        case 'H':
+            opt->skip_hidden = false;
+            break;
+        case 'I':
+            opt->no_ignore = true;
+            break;
+        case 'i':
+            opt->icase = true;
+            break;
+        case 'h':
+            print_usage(NULL);
+            return OPTIONS_HELP;
+        // Options
         case 'd':
             assert(optarg);
             opt->max_depth = (long)strtoul(optarg, NULL, 0);
             if (opt->max_depth == 0 || errno == ERANGE) {
                 print_usage("Invalid argument for --depth");
+                return OPTIONS_FAILURE;
+            }
+            break;
+        case 'e':
+            assert(optarg);
+            opt->ext = optarg;
+            break;
+        case 'j':
+            assert(optarg);
+            opt->nthreads = (long)strtoul(optarg, NULL, 0);
+            if (opt->nthreads == 0 || errno == ERANGE) {
+                print_usage("Invalid argument for --nthreads");
                 return OPTIONS_FAILURE;
             }
             break;
@@ -104,32 +136,6 @@ int parse_options(int argc, char *argv[], options *opt) {
                 return OPTIONS_FAILURE;
             }
             break;
-        case 'g': // glob
-            opt->mode = GLOB;
-            break;
-        case 'H':
-            opt->skip_hidden = false;
-            break;
-        case 'I':
-            opt->no_ignore = true;
-            break;
-        case 'i':
-            opt->icase = true;
-            break;
-        case 'j':
-            assert(optarg);
-            opt->nthreads = (long)strtoul(optarg, NULL, 0);
-            if (opt->nthreads == 0 || errno == ERANGE) {
-                print_usage("Invalid argument for --nthreads");
-                return OPTIONS_FAILURE;
-            }
-            break;
-        case 'D':
-            opt->deterministic = true;
-            break;
-        case 'h':
-            print_usage(NULL);
-            return OPTIONS_HELP;
         default:
             print_usage(NULL);
             return OPTIONS_FAILURE;

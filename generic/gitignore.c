@@ -330,10 +330,10 @@ gitignore *gitignore_new(const char *path) {
     with_file(f, file, "r") {
         char *line = NULL;
         size_t n = 0;
-        ssize_t len = 0;
-        while ((len = getline(&line, &n, f)) != -1) {
+        ssize_t llen = 0;
+        while ((llen = getline(&line, &n, f)) != -1) {
             // Discard the newline char
-            line[len - 1] = '\0';
+            line[llen - 1] = '\0';
 
             glob *gl = glob_new(line);
             if (gl) {

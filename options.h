@@ -32,7 +32,7 @@ typedef struct {
     bool icase;
     bool no_ignore;
     long nthreads;
-    bool deterministic;
+    const char *ext;
 } options;
 
 enum {

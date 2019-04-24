@@ -9,6 +9,7 @@
 #include "message.h"
 #include "options.h"
 #include "regex.h"
+#include "scandir.h"
 
 // C standard library
 #include <assert.h>
@@ -88,27 +89,22 @@ void process_match(const char *real_path, const char *dir_name,
     }
 }
 
-int filter_parents(const struct dirent *entry) {
+int filter(const struct dirent *entry, const void *const data) {
+    const options *const opt = data;
     const char *d_name = entry->d_name;
+    size_t d_namlen = strlen(d_name);
 
     // Skip current and parent
     if (strcmp(d_name, ".") == 0 || strcmp(d_name, "..") == 0) {
         return 0;
     }
 
-    return 1;
-}
-
-int filter_hidden(const struct dirent *entry) {
-    const char *d_name = entry->d_name;
-    size_t d_namlen = strlen(d_name);
-
     // Skip hidden
-    if (d_name[0] == '.' || d_name[d_namlen - 1] == '~') {
+    if (opt->skip_hidden && (d_name[0] == '.' || d_name[d_namlen - 1] == '~')) {
         return 0;
     }
 
-    return filter_parents(entry);
+    return 1;
 }
 
 void walk(const char *parent, const size_t l_parent, const options *const opt,
@@ -124,19 +120,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         return;
     }
 
-    int (*filter)(const struct dirent *entry) = filter_parents;
-    if (opt->skip_hidden) {
-        filter = filter_hidden;
-    }
-
-    // For deterministic order we have to lock stdout for each
-    // directory
-    if (opt->deterministic) {
-        flockfile(stdout);
-    }
-
     // Traverse the directory
-    foreach_scandir(entry, parent, filter) {
+    foreach_scandir(entry, parent, filter, opt) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
 
@@ -205,10 +190,6 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         free(current);
-    }
-
-    if (opt->deterministic) {
-        funlockfile(stdout);
     }
 }
 
@@ -282,7 +263,7 @@ int main(int argc, char *argv[]) {
     opt.icase = false;
     opt.no_ignore = false;
     opt.nthreads = get_nprocs();
-    opt.deterministic = false;
+    opt.ext = NULL;
 
     // Parse the command line
     switch (parse_options(argc, argv, &opt)) {
