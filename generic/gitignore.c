@@ -75,7 +75,7 @@ enum glob_flags { NONE = 1 << 0, WHITELISTED = 1 << 1, ONLY_DIR = 1 << 2 };
 
 struct _glob {
     char *pattern;
-    enum glob_flags flags;
+    int flags;
 };
 
 glob *glob_new(const char *str) {

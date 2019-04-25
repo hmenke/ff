@@ -31,11 +31,13 @@ void print_usage(const char *msg) {
         "  -H, --hidden           Traverse hidden directories and files as well\n"
         "  -I, --no-ignore        Disregard .gitignore\n"
         "  -i, --ignore-case      Ignore case when applying the regex\n"
+        "  -a, --absolute-path    Show full paths starting from root\n"
+        "  -0, --print0           Separate search result by \\0\n"
         "  -h, --help             Display this help and quit\n"
         "\n"
         "OPTIONS:\n"
         "  -d, --max-depth <n>    Maximum directory traversal depth\n"
-        "  -e, --extension <ext>  Maximum directory traversal depth\n"
+        "  -e, --extension <ext>  Filter by file extension\n"
         "  -j, --threads <n>      Use <n> threads for parallel directory traversal\n"
         "  -t, --type <x>         Restrict output to type with <x> one of\n"
         "                             b   block device.\n"
@@ -53,6 +55,7 @@ int parse_options(int argc, char *argv[], options *opt) {
     int option_index = 0;
     static struct option long_options[] = {
         // Flags
+        {"print0", no_argument, NULL, '0'},
         {"glob", no_argument, NULL, 'g'},
         {"hidden", no_argument, NULL, 'H'},
         {"no-ignore", no_argument, NULL, 'I'},
@@ -67,10 +70,16 @@ int parse_options(int argc, char *argv[], options *opt) {
         {NULL, 0, NULL, 0}};
 
     int c = -1;
-    while ((c = getopt_long(argc, argv, "d:e:t:j:gHiIDh", long_options,
+    while ((c = getopt_long(argc, argv, "d:e:t:j:0agHiIDh", long_options,
                             &option_index)) != -1) {
         switch (c) {
         // Flags
+        case '0':
+            opt->delimiter = '\0';
+            break;
+        case 'a':
+            opt->absolute = true;
+            break;
         case 'g':
             opt->mode = GLOB;
             break;

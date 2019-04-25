@@ -81,10 +81,10 @@ void message_body_free(void *ptr) {
 void process_match(const char *real_path, const char *dir_name,
                    const char *base_name, const options *const opt) {
     if (opt->colorize) {
-        printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "\n",
-               dir_name, dircolor(real_path), base_name);
+        printf(DIRCOLOR_DIR "%s/" DIRCOLOR_RESET "%s%s" DIRCOLOR_RESET "%c",
+               dir_name, dircolor(real_path), base_name, opt->delimiter);
     } else {
-        puts(real_path);
+        printf("%s%c", real_path, opt->delimiter);
     }
 }
 
@@ -281,6 +281,8 @@ int main(int argc, char *argv[]) {
     opt.no_ignore = false;
     opt.nthreads = get_nprocs();
     opt.ext = NULL;
+    opt.delimiter = '\n';
+    opt.absolute = false;
 
     // Parse the command line
     switch (parse_options(argc, argv, &opt)) {
@@ -309,24 +311,36 @@ int main(int argc, char *argv[]) {
 
     // Send the inital job
     if (opt.optind == argc) {
+        char *path = strdup(".");
+        if (opt.absolute) {
+            path = realpath(path, NULL);
+        }
         shared_ptr repo = make_shared(NULL);
         if (!opt.no_ignore) {
-            repo.ptr = gitignore_new(".");
+            repo.ptr = gitignore_new(path);
         }
         message *msg =
-            message_new(message_body_new(0, 1, ".", repo), message_body_free);
+            message_new(message_body_new(0, strlen(path), path, repo), message_body_free);
         queue_put_head(opt.q, msg);
+        free(path);
     }
 
     for (int arg = opt.optind; arg < argc; ++arg) {
+        char *path = argv[arg];
+        if (opt.absolute) {
+            path = realpath(path, NULL);
+        }
         shared_ptr repo = make_shared(NULL);
         if (!opt.no_ignore) {
-            repo.ptr = gitignore_new(argv[arg]);
+            repo.ptr = gitignore_new(path);
         }
         message *msg =
-            message_new(message_body_new(0, strlen(argv[arg]), argv[arg], repo),
+            message_new(message_body_new(0, strlen(path), path, repo),
                         message_body_free);
         queue_put_head(opt.q, msg);
+        if (opt.absolute) {
+            free(path);
+        }
     }
 
     // Send termination signal

@@ -33,6 +33,8 @@ typedef struct {
     bool no_ignore;
     long nthreads;
     const char *ext;
+    char delimiter;
+    bool absolute;
 } options;
 
 enum {
