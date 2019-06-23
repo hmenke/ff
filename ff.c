@@ -135,6 +135,7 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         if (opt->ext && entry->d_type == DT_REG) {
             const char *ext = strrchr(d_name, '.');
             if (ext == NULL || strcmp(ext + 1, opt->ext) != 0) {
+                free(current);
                 continue;
             }
         }
@@ -199,6 +200,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                 message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
+
+        free(current);
     }
 
     qsort(names, cnt, sizeof(char *), cmp);

@@ -211,6 +211,7 @@ globlist *globlist_new() {
     globlist *gl = (globlist *)malloc(sizeof(globlist));
     gl->head = NULL;
     gl->tail = NULL;
+    gl->n = 0;
     return gl;
 }
 

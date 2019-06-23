@@ -81,7 +81,7 @@ void queue_put(queue *q, message *msg, size_t priority) {
     new_node->next = NULL;
 
     with_pthread_mutex(&q->lock) {
-        if (q->head == NULL && q->tail == NULL) {
+        if (q->head == NULL || q->tail == NULL) {
             // If the list was empty, create the first node
             q->head = new_node;
             q->tail = new_node;
