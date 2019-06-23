@@ -200,8 +200,6 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
                 message_body_free);
             queue_put(opt->q, m, depth + 1);
         }
-
-        free(current);
     }
 
     qsort(names, cnt, sizeof(char *), cmp);
