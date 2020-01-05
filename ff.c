@@ -5,7 +5,6 @@
 #include "dircolors.h"
 #include "flagman.h"
 #include "gitignore.h"
-#include "macros.h"
 #include "message.h"
 #include "options.h"
 #include "regex.h"
@@ -108,7 +107,9 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
     // Traverse the directory
     size_t cnt = 0, len_names = 16;
     char **names = (char **)malloc(len_names * sizeof(char *));
-    foreach_opendir(entry, parent) {
+    for (struct dirent *_d = (struct dirent *)opendir(parent), *entry = NULL;
+         (DIR *)_d != NULL
+         && ((entry = readdir((DIR *)_d)) != NULL || closedir((DIR *)_d));) {
         const char *d_name = entry->d_name;
         size_t d_namlen = strlen(d_name);
 
@@ -118,8 +119,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
         }
 
         // Skip hidden
-        if (opt->skip_hidden &&
-            (d_name[0] == '.' || d_name[d_namlen - 1] == '~')) {
+        if (opt->skip_hidden
+            && (d_name[0] == '.')) { // || d_name[d_namlen - 1] == '~')) {
             continue;
         }
 
@@ -142,8 +143,8 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
 
         // Check .gitignore
         if (!opt->no_ignore && repo.ptr != NULL) {
-            if (gitignore_is_ignored(repo.ptr, current,
-                                     entry->d_type == DT_DIR)) {
+            if (gitignore_is_ignored(repo.ptr, current, l_current,
+                                     entry->d_type)) {
                 free(current);
                 continue;
             }
@@ -164,10 +165,10 @@ void walk(const char *parent, const size_t l_parent, const options *const opt,
             break;
         case NONE:
         success:
-            if (!(opt->ext && entry->d_type == DT_DIR) &&
-                (opt->only_type == DT_UNKNOWN ||
-                 opt->only_type == entry->d_type)) {
-                if (unlikely(cnt == len_names)) {
+            if (!(opt->ext && entry->d_type == DT_DIR)
+                && (opt->only_type == DT_UNKNOWN
+                    || opt->only_type == entry->d_type)) {
+                if (__builtin_expect(cnt == len_names, 0)) {
                     len_names *= 2;
                     names = (char **)realloc(names, len_names * sizeof(char *));
                 }
@@ -239,7 +240,8 @@ static void *worker(void *arg) {
     //
     // Each message in the queue is a directory, so we fetch one
     // message from the queue and walk the directory tree.
-    foreach_queue_get(msg, opt->q) {
+    for (message *msg = NULL; (msg = queue_get(opt->q)) != NULL;
+         message_free(msg)) {
         // Dissect the message
         message_body *b = (message_body *)message_data(msg);
         int depth = b->depth;
@@ -286,7 +288,7 @@ int main(int argc, char *argv[]) {
     opt.absolute = false;
 
     // Parse the command line
-    switch (parse_options(argc, argv, &opt)) {
+    switch (ff_parse_options(argc, argv, &opt)) {
     case OPTIONS_SUCCESS:
         break;
     case OPTIONS_FAILURE: // parsing error
@@ -320,8 +322,8 @@ int main(int argc, char *argv[]) {
         if (!opt.no_ignore) {
             repo.ptr = gitignore_new(path);
         }
-        message *msg =
-            message_new(message_body_new(0, strlen(path), path, repo), message_body_free);
+        message *msg = message_new(
+            message_body_new(0, strlen(path), path, repo), message_body_free);
         queue_put_head(opt.q, msg);
         free(path);
     }
@@ -335,9 +337,8 @@ int main(int argc, char *argv[]) {
         if (!opt.no_ignore) {
             repo.ptr = gitignore_new(path);
         }
-        message *msg =
-            message_new(message_body_new(0, strlen(path), path, repo),
-                        message_body_free);
+        message *msg = message_new(
+            message_body_new(0, strlen(path), path, repo), message_body_free);
         queue_put_head(opt.q, msg);
         if (opt.absolute) {
             free(path);

@@ -43,4 +43,4 @@ enum {
     OPTIONS_HELP = 2,
 };
 
-int parse_options(int argc, char *argv[], options *opt);
+int ff_parse_options(int argc, char *argv[], options *opt);

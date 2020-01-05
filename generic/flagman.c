@@ -1,5 +1,4 @@
 #include "flagman.h"
-#include "macros.h"
 
 // C standard library
 #include <stdlib.h>

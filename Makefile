@@ -1,5 +1,5 @@
-CFLAGS += -Wall -Wextra -Wpedantic -Igeneric
-LDLIBS += -lpthread
+CFLAGS += -Wall -Wextra -Wpedantic -Igeneric -isystemgit
+LDLIBS += -lz -lpthread
 
 pcre: LDLIBS += -lpcre
 pcre: release
@@ -23,4 +23,12 @@ ff: generic/dircolors.c \
     generic/message.c   \
     ff.c                \
     options.c           \
-    regex.c
+    regex.c             \
+    git/libgit.a        \
+    git/xdiff/lib.a
+
+git/libgit.a:
+	$(MAKE) -C git libgit.a
+
+git/xdiff/lib.a:
+	$(MAKE) -C git xdiff/lib.a

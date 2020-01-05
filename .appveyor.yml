@@ -3,16 +3,17 @@ image:
 - Ubuntu
 
 install:
-- cmd: C:\cygwin64\setup-x86_64.exe -nqP libgit2-devel,libpcre-devel
+- cmd: C:\cygwin64\setup-x86_64.exe -nqP libiconv-devel,libpcre-devel,libssl-devel,zlib-devel
 - sh: sudo apt-get -q update
-- sh: sudo apt-get -qy --no-install-recommends install libpcre3-dev libgit2-dev
+- sh: sudo apt-get -qy --no-install-recommends install libpcre3-dev libssl-dev zlib1g-dev
 
 build_script:
+- git submodule update --init
 - cmd: C:\cygwin64\bin\sh -lc "cd c:/projects/ff; make"
 - sh: make
 
 after_build:
-- cmd: 7z a ff-win.zip ff.exe C:\cygwin64\bin\cygwin1.dll C:\cygwin64\bin\cyggit2-25.dll C:\cygwin64\bin\cygpcre-1.dll
+- cmd: 7z a ff-win.zip ff.exe C:\cygwin64\bin\cygwin1.dll C:\cygwin64\bin\cygpcre-1.dll
 - sh: zip ff-linux.zip ff
 
 artifacts:

@@ -3,7 +3,6 @@
 #endif
 
 #include "message.h"
-#include "macros.h"
 
 // C standard library
 #include <assert.h>
@@ -80,28 +79,28 @@ void queue_put(queue *q, message *msg, size_t priority) {
     new_node->msg = msg;
     new_node->next = NULL;
 
-    with_pthread_mutex(&q->lock) {
-        if (q->head == NULL || q->tail == NULL) {
-            // If the list was empty, create the first node
-            q->head = new_node;
-            q->tail = new_node;
-        } else {
-            // Walk the list until an item with lower priority is found or
-            // the list has ended
-            node *p = q->head;
-            while (p != q->tail && p->priority > priority) {
-                if (p->next == NULL) {
-                    break;
-                }
-                p = p->next;
+    pthread_mutex_lock(&q->lock);
+    if (q->head == NULL || q->tail == NULL) {
+        // If the list was empty, create the first node
+        q->head = new_node;
+        q->tail = new_node;
+    } else {
+        // Walk the list until an item with lower priority is found or
+        // the list has ended
+        node *p = q->head;
+        while (p != q->tail && p->priority > priority) {
+            if (p->next == NULL) {
+                break;
             }
-
-            // Insert new item
-            node *next = p->next;
-            p->next = new_node;
-            new_node->next = next;
+            p = p->next;
         }
+
+        // Insert new item
+        node *next = p->next;
+        p->next = new_node;
+        new_node->next = next;
     }
+    pthread_mutex_unlock(&q->lock);
 
     sem_post(&q->length);
 }
@@ -112,17 +111,17 @@ void queue_put_head(queue *q, message *msg) {
     new_node->msg = msg;
     new_node->next = NULL;
 
-    with_pthread_mutex(&q->lock) {
-        if (q->head == NULL && q->tail == NULL) {
-            // If the list was empty, create the first node
-            q->head = new_node;
-            q->tail = new_node;
-        } else {
-            // next of the new node will be the current head
-            new_node->next = q->head;
-            q->head = new_node;
-        }
+    pthread_mutex_lock(&q->lock);
+    if (q->head == NULL && q->tail == NULL) {
+        // If the list was empty, create the first node
+        q->head = new_node;
+        q->tail = new_node;
+    } else {
+        // next of the new node will be the current head
+        new_node->next = q->head;
+        q->head = new_node;
     }
+    pthread_mutex_unlock(&q->lock);
 
     sem_post(&q->length);
 }
@@ -133,17 +132,17 @@ void queue_put_tail(queue *q, message *msg) {
     new_node->msg = msg;
     new_node->next = NULL;
 
-    with_pthread_mutex(&q->lock) {
-        if (q->head == NULL && q->tail == NULL) {
-            // If the list was empty, create the first node
-            q->head = new_node;
-            q->tail = new_node;
-        } else {
-            // next of the current tail will be the new tail
-            q->tail->next = new_node;
-            q->tail = new_node;
-        }
+    pthread_mutex_lock(&q->lock);
+    if (q->head == NULL && q->tail == NULL) {
+        // If the list was empty, create the first node
+        q->head = new_node;
+        q->tail = new_node;
+    } else {
+        // next of the current tail will be the new tail
+        q->tail->next = new_node;
+        q->tail = new_node;
     }
+    pthread_mutex_unlock(&q->lock);
 
     sem_post(&q->length);
 }
@@ -153,20 +152,20 @@ message *queue_get(queue *q) {
     sem_wait(&q->length);
 
     message *msg = NULL;
-    with_pthread_mutex(&q->lock) {
-        // Retrieve the message and free the node
-        msg = q->head->msg;
-        node *oldhead = q->head;
-        if (q->head->next) {
-            // next is new head
-            q->head = q->head->next;
-        } else {
-            // if there is no next, queue is empty
-            q->head = NULL;
-            q->tail = NULL;
-        }
-        free(oldhead);
+    pthread_mutex_lock(&q->lock);
+    // Retrieve the message and free the node
+    msg = q->head->msg;
+    node *oldhead = q->head;
+    if (q->head->next) {
+        // next is new head
+        q->head = q->head->next;
+    } else {
+        // if there is no next, queue is empty
+        q->head = NULL;
+        q->tail = NULL;
     }
+    free(oldhead);
+    pthread_mutex_unlock(&q->lock);
 
     return msg;
 }
